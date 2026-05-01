@@ -18,7 +18,6 @@ import {
   CloudCheck,
   CloudUpload,
   Download,
-  Eye,
   FileText,
   Globe2,
   Hash,
@@ -1560,6 +1559,10 @@ function triggerPdfDownload(blob: Blob, fileName: string, message: string) {
   } satisfies ExportDeliveryResult;
 }
 
+function deliverExportDownload(blob: Blob, fileName: string): ExportDeliveryResult {
+  return triggerPdfDownload(blob, fileName, "PDF download started.");
+}
+
 async function deliverExportPdf({
   blob,
   fileName,
@@ -2344,6 +2347,12 @@ function ProtectedExpenseEditor({
   }, [isExportPreviewOpen]);
 
   useEffect(() => {
+    if (isMobileLayout && isExportPreviewOpen) {
+      setIsExportPreviewOpen(false);
+    }
+  }, [isExportPreviewOpen, isMobileLayout]);
+
+  useEffect(() => {
     return () => {
       for (const objectUrl of exportAssetObjectUrlsRef.current) {
         URL.revokeObjectURL(objectUrl);
@@ -2715,6 +2724,11 @@ function ProtectedExpenseEditor({
       return;
     }
 
+    if (isMobileLayout) {
+      await handleDirectMobileExport();
+      return;
+    }
+
     if (!canExport) {
       setPrintError(
         exportValidationMessage ?? "Select a company profile with a logo before exporting.",
@@ -2791,11 +2805,7 @@ function ProtectedExpenseEditor({
         selectedCompanyName: exportArtifacts.selectedCompanyName,
         totalAmount: exportArtifacts.totalAmount,
       });
-      const deliveryResult = await deliverExportPdf({
-        blob: exportBlob,
-        fileName: exportFileName,
-        preferShare: true,
-      });
+      const deliveryResult = deliverExportDownload(exportBlob, exportFileName);
 
       if (deliveryResult.kind === "cancelled") {
         return;
@@ -2854,11 +2864,13 @@ function ProtectedExpenseEditor({
         selectedCompanyName: exportArtifacts.selectedCompanyName,
         totalAmount: exportArtifacts.totalAmount,
       });
-      const deliveryResult = await deliverExportPdf({
-        blob: exportBlob,
-        fileName: exportFileName,
-        preferShare: isMobileLayout,
-      });
+      const deliveryResult = isMobileLayout
+        ? deliverExportDownload(exportBlob, exportFileName)
+        : await deliverExportPdf({
+            blob: exportBlob,
+            fileName: exportFileName,
+            preferShare: false,
+          });
 
       if (deliveryResult.kind === "cancelled") {
         return;
@@ -2961,41 +2973,26 @@ function ProtectedExpenseEditor({
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                   <ThemeSettingsSheet userEmail={session.userEmail} />
                   {isMobileLayout ? (
-                    <>
-                      <Button
-                        className="w-full rounded-full px-4 sm:w-auto"
-                        disabled={isExportBusy || !canExport}
-                        size="sm"
-                        type="button"
-                        onClick={() => {
-                          void handleDirectMobileExport();
-                        }}
-                      >
-                        {isExportBusy ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <Download className="size-4" />
-                        )}
-                        {isExportBusy
-                          ? isSavingPdf
-                            ? "Sharing / saving..."
-                            : "Preparing PDF..."
-                          : "Share / Save PDF"}
-                      </Button>
-                      <Button
-                        className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
-                        disabled={isExportBusy || !canExport}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          void handlePreviewExport();
-                        }}
-                      >
-                        <Eye className="size-4" />
-                        Preview PDF
-                      </Button>
-                    </>
+                    <Button
+                      className="w-full rounded-full px-4 sm:w-auto"
+                      disabled={isExportBusy || !canExport}
+                      size="sm"
+                      type="button"
+                      onClick={() => {
+                        void handleDirectMobileExport();
+                      }}
+                    >
+                      {isExportBusy ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : (
+                        <Download className="size-4" />
+                      )}
+                      {isExportBusy
+                        ? isSavingPdf
+                          ? "Downloading..."
+                          : "Preparing PDF..."
+                        : "Download PDF"}
+                    </Button>
                   ) : (
                     <Button
                       className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
@@ -3589,39 +3586,25 @@ function ProtectedExpenseEditor({
                   </div>
 
                   {isMobileLayout ? (
-                    <div className="space-y-2">
-                      <Button
-                        className="h-11 w-full rounded-2xl"
-                        disabled={isExportBusy || !canExport}
-                        type="button"
-                        onClick={() => {
-                          void handleDirectMobileExport();
-                        }}
-                      >
-                        {isExportBusy ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <Download className="size-4" />
-                        )}
-                        {isExportBusy
-                          ? isSavingPdf
-                            ? "Sharing / saving PDF..."
-                            : "Preparing your export..."
-                          : "Share / Save PDF"}
-                      </Button>
-                      <Button
-                        className="h-11 w-full rounded-2xl"
-                        disabled={isExportBusy || !canExport}
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          void handlePreviewExport();
-                        }}
-                      >
-                        <Eye className="size-4" />
-                        Preview PDF first
-                      </Button>
-                    </div>
+                    <Button
+                      className="h-11 w-full rounded-2xl"
+                      disabled={isExportBusy || !canExport}
+                      type="button"
+                      onClick={() => {
+                        void handleDirectMobileExport();
+                      }}
+                    >
+                      {isExportBusy ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : (
+                        <Download className="size-4" />
+                      )}
+                      {isExportBusy
+                        ? isSavingPdf
+                          ? "Downloading PDF..."
+                          : "Preparing your export..."
+                        : "Download PDF"}
+                    </Button>
                   ) : (
                     <Button
                       className="h-11 w-full rounded-2xl"
@@ -3668,7 +3651,7 @@ function ProtectedExpenseEditor({
         </section>
 
         <Dialog
-          open={isExportPreviewOpen}
+          open={!isMobileLayout && isExportPreviewOpen}
           onOpenChange={(open) => {
             if (isSavingPdf) {
               return;
@@ -3690,7 +3673,7 @@ function ProtectedExpenseEditor({
                   </DialogTitle>
                   <DialogDescription className="mt-2 max-w-2xl text-sm leading-6 sm:leading-7">
                     {isMobileLayout
-                      ? "Preview the full PDF first, or go back and use Share / Save PDF for the faster mobile flow."
+                      ? "Mobile export skips preview and starts the PDF download directly."
                       : "Review the full PDF before saving. This preview is scrollable through every expense and receipt page."}
                   </DialogDescription>
                 </div>
@@ -3709,7 +3692,7 @@ function ProtectedExpenseEditor({
 
             <div className="border-b border-border/60 bg-background/60 px-3 py-2 text-xs text-muted-foreground sm:px-6 sm:py-3 sm:text-sm">
               {isMobileLayout
-                ? "From this preview you can share, save, or open the PDF using your mobile browser's best available flow."
+                ? "Mobile browsers download the PDF directly without rendering this preview."
                 : "Confirm to open your system save prompt and write the PDF directly from this preview."}
             </div>
 
@@ -3746,7 +3729,7 @@ function ProtectedExpenseEditor({
               ) : (
                 <p className="mr-auto text-sm text-muted-foreground">
                   {isMobileLayout
-                    ? "This preview matches the PDF that will be shared, opened, or saved."
+                    ? "The PDF will download directly on mobile."
                     : "The saved PDF matches this preview layout."}
                 </p>
               )}
@@ -3774,10 +3757,10 @@ function ProtectedExpenseEditor({
                 )}
                 {isSavingPdf
                   ? isMobileLayout
-                    ? "Sharing / saving PDF..."
+                    ? "Downloading PDF..."
                     : "Saving PDF..."
                   : isMobileLayout
-                    ? "Share / Save PDF"
+                    ? "Download PDF"
                     : "Confirm and save PDF"}
               </Button>
             </DialogFooter>
