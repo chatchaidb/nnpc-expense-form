@@ -34,6 +34,10 @@ import {
   X,
 } from "lucide-react";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
+import {
+  MobileExpenseBottomDock,
+  MobileExpenseWorkflowSummary,
+} from "@/components/mobile/expense-mobile-workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,6 +104,7 @@ import {
   createEmptyRow,
   deriveDisplayName,
   findExpenseTypeLabel,
+  formatCurrency,
   formatFileSize,
   hasRowContent,
   parseAmount,
@@ -117,13 +122,20 @@ import { getUserProfile, type UserProfile } from "../lib/profile-data";
 import { buildPublicStorageUrl } from "../lib/supabase-api";
 
 const EMPTY_COMPANY_VALUE = "__none__";
-const EXPORT_FORM_ROWS_PER_PAGE = 15;
+const EXPORT_FORM_ROWS_PER_PAGE = 5;
 const RECEIPTS_PER_PAGE = 4;
 const IMAGE_PRELOAD_TIMEOUT_MS = 12_000;
 const PRINT_TABLE_GRID_TEMPLATE = "1.6fr 1.75fr 2.95fr 1.25fr";
 const EXPORT_PAGE_WIDTH_PX = 794;
 const EXPORT_PAGE_HEIGHT_PX = 1123;
 const BLANK_PRINT_FIELD_VALUE = " ";
+const EMPLOYEE_NAME_MAX_LENGTH = 64;
+const DEPARTMENT_MAX_LENGTH = 48;
+const EXPORT_NOTE_MAX_LENGTH = 240;
+const EXPENSE_REMARK_MAX_LENGTH = 220;
+const COMPANY_NAME_MAX_LENGTH = 96;
+const COMPANY_TAX_ID_MAX_LENGTH = 32;
+const COMPANY_ADDRESS_MAX_LENGTH = 240;
 
 const EXPORT_COPY: Record<
   ExportLanguage,
@@ -389,6 +401,17 @@ function resizeTextareaElement(element: HTMLTextAreaElement | null) {
 
   element.style.height = "0px";
   element.style.height = `${element.scrollHeight}px`;
+}
+
+function limitTextLength(value: string, maxLength: number) {
+  return value.slice(0, maxLength);
+}
+
+function limitExpenseRowsForExport(rows: ExpenseRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    remark: limitTextLength(row.remark, EXPENSE_REMARK_MAX_LENGTH),
+  }));
 }
 
 function isDataUrl(url: string) {
@@ -717,6 +740,58 @@ function drawTextBlock({
   return lines.length * lineHeight;
 }
 
+function measureTextBlockHeight({
+  context,
+  font,
+  lineHeight,
+  maxLines = Number.MAX_SAFE_INTEGER,
+  maxWidth,
+  text,
+}: {
+  context: CanvasRenderingContext2D;
+  font: string;
+  lineHeight: number;
+  maxLines?: number;
+  maxWidth: number;
+  text: string;
+}) {
+  context.save();
+  context.font = font;
+  const height = splitTextIntoLines(context, text, maxWidth, maxLines).length * lineHeight;
+  context.restore();
+
+  return height;
+}
+
+function getCompanyNameTextStyle(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+) {
+  const options = [
+    { font: "600 26px Georgia, 'Times New Roman', serif", lineHeight: 27, maxLines: 2 },
+    { font: "600 23px Georgia, 'Times New Roman', serif", lineHeight: 25, maxLines: 3 },
+    { font: "600 20px Georgia, 'Times New Roman', serif", lineHeight: 23, maxLines: 3 },
+    { font: "600 18px Georgia, 'Times New Roman', serif", lineHeight: 21, maxLines: 4 },
+  ];
+
+  context.save();
+
+  for (const option of options) {
+    context.font = option.font;
+    const lines = splitTextIntoLines(context, text, maxWidth, option.maxLines);
+    const didFit = lines.length > 0 && !lines.some((line) => line.endsWith("\u2026"));
+
+    if (didFit) {
+      context.restore();
+      return option;
+    }
+  }
+
+  context.restore();
+  return options[options.length - 1];
+}
+
 function drawHorizontalRule(
   context: CanvasRenderingContext2D,
   x: number,
@@ -750,6 +825,23 @@ function getCompanyAddressHeaderWidth(address: string) {
   }
 
   return 164;
+}
+
+function shouldStackCompanyAddressHeader(companyName: string, address: string) {
+  const trimmedCompanyName = companyName.trim();
+  const trimmedAddress = address.trim();
+
+  if (!trimmedAddress) {
+    return false;
+  }
+
+  const addressLineCount = trimmedAddress.split(/\r?\n/).filter(Boolean).length;
+
+  return (
+    trimmedAddress.length > 96 ||
+    addressLineCount > 2 ||
+    (trimmedCompanyName.length > 42 && trimmedAddress.length > 54)
+  );
 }
 
 function drawImageContain({
@@ -858,9 +950,17 @@ async function renderFormPageCanvas(
   const logoSize = 64;
   const headerTextX = contentX + logoSize + 18;
   const trimmedCompanyAddress = source.companyAddress.trim();
+  const companyNameText = source.selectedCompanyName || source.exportCopy.companyPending;
   const hasCompanyAddress = Boolean(trimmedCompanyAddress);
-  const rightHeaderWidth = getCompanyAddressHeaderWidth(trimmedCompanyAddress);
-  const headerSideReserve = hasCompanyAddress
+  const shouldStackAddressHeader = shouldStackCompanyAddressHeader(
+    companyNameText,
+    trimmedCompanyAddress,
+  );
+  const rightHeaderWidth =
+    hasCompanyAddress && !shouldStackAddressHeader
+      ? getCompanyAddressHeaderWidth(trimmedCompanyAddress)
+      : 0;
+  const headerSideReserve = rightHeaderWidth
     ? rightHeaderWidth + 24
     : source.printableFormPages.length > 1
       ? 156
@@ -915,36 +1015,45 @@ async function renderFormPageCanvas(
     y,
   });
 
+  const companyNameTextStyle = getCompanyNameTextStyle(
+    context,
+    companyNameText,
+    headerTextMaxWidth,
+  );
   const companyNameHeight = drawTextBlock({
     context,
-    font: "600 28px Georgia, 'Times New Roman', serif",
-    lineHeight: 24,
-    maxLines: 2,
+    font: companyNameTextStyle.font,
+    lineHeight: companyNameTextStyle.lineHeight,
+    maxLines: companyNameTextStyle.maxLines,
     maxWidth: headerTextMaxWidth,
-    text: source.selectedCompanyName || source.exportCopy.companyPending,
+    text: companyNameText,
     x: headerTextX,
     y: y + 16,
   });
 
+  let nextHeaderTextY = y + 16 + companyNameHeight + 5;
   const companyTaxIdHeight = source.companyTaxId
     ? drawTextBlock({
         color: "rgba(0,0,0,0.6)",
         context,
         font: "700 10px Arial, sans-serif",
-        lineHeight: 12,
-        maxLines: 1,
+        lineHeight: 13,
+        maxLines: 2,
         maxWidth: headerTextMaxWidth,
         text: `${source.exportCopy.companyTaxId.toUpperCase()}: ${source.companyTaxId}`,
         x: headerTextX,
-        y: y + 18 + companyNameHeight,
+        y: nextHeaderTextY,
       })
     : 0;
 
+  if (companyTaxIdHeight) {
+    nextHeaderTextY += companyTaxIdHeight + 5;
+  }
+
   const hasFormSubtitle = Boolean(source.exportCopy.formSubtitle.trim());
-  const subtitleY = y + 16 + companyNameHeight + companyTaxIdHeight + 4;
 
   if (hasFormSubtitle) {
-    drawTextBlock({
+    const subtitleHeight = drawTextBlock({
       color: "rgba(0,0,0,0.65)",
       context,
       font: "400 11px Arial, sans-serif",
@@ -953,11 +1062,13 @@ async function renderFormPageCanvas(
       maxWidth: headerTextMaxWidth,
       text: source.exportCopy.formSubtitle,
       x: headerTextX,
-      y: subtitleY,
+      y: nextHeaderTextY,
     });
+
+    nextHeaderTextY += subtitleHeight + 7;
   }
 
-  const titleY = hasFormSubtitle ? subtitleY + 20 : y + 16 + companyNameHeight + 8;
+  const titleY = nextHeaderTextY;
   drawTextBlock({
     context,
     font: "700 13px Arial, sans-serif",
@@ -988,7 +1099,7 @@ async function renderFormPageCanvas(
     });
   }
 
-  const addressHeight = hasCompanyAddress
+  const addressHeight = hasCompanyAddress && !shouldStackAddressHeader
     ? drawTextBlock({
         align: "right",
         color: "rgba(0,0,0,0.64)",
@@ -1002,10 +1113,28 @@ async function renderFormPageCanvas(
         y: y + (source.printableFormPages.length > 1 ? 18 : 4),
       })
     : 0;
-  const addressBottom = hasCompanyAddress
+  const sideAddressBottom = hasCompanyAddress && !shouldStackAddressHeader
     ? y + (source.printableFormPages.length > 1 ? 18 : 4) + addressHeight
     : 0;
-  const headerBottom = Math.max(y + logoSize, titleY + 18, addressBottom);
+  const stackedAddressY = titleY + 24;
+  const stackedAddressHeight =
+    hasCompanyAddress && shouldStackAddressHeader
+      ? drawTextBlock({
+          color: "rgba(0,0,0,0.64)",
+          context,
+          font: "400 9px Arial, sans-serif",
+          lineHeight: 12,
+          maxLines: 8,
+          maxWidth: contentWidth,
+          text: trimmedCompanyAddress,
+          x: contentX,
+          y: stackedAddressY,
+        })
+      : 0;
+  const stackedAddressBottom = stackedAddressHeight
+    ? stackedAddressY + stackedAddressHeight
+    : 0;
+  const headerBottom = Math.max(y + logoSize, titleY + 18, sideAddressBottom, stackedAddressBottom);
   drawHorizontalRule(context, contentX, headerBottom + 10, contentWidth, "rgba(0,0,0,0.25)");
   y = headerBottom + 26;
 
@@ -1059,27 +1188,69 @@ async function renderFormPageCanvas(
     y,
   });
 
-  drawTextBlock({
+  const noteTextHeight = drawTextBlock({
     context,
     font: "400 11px Arial, sans-serif",
     lineHeight: 16,
-    maxLines: 2,
+    maxLines: 8,
     maxWidth: contentWidth,
     text: source.note || source.exportCopy.noteFallback,
     x: contentX,
     y: y + 18,
   });
-  drawHorizontalRule(context, contentX, y + 54, contentWidth, "rgba(0,0,0,0.15)");
-  y += 70;
+  const noteRuleY = y + 18 + Math.max(noteTextHeight, 16) + 12;
+  drawHorizontalRule(context, contentX, noteRuleY, contentWidth, "rgba(0,0,0,0.15)");
+  y = noteRuleY + 16;
 
   const tableX = contentX;
   const tableY = y;
   const tableHeaderHeight = 30;
-  const tableRowHeight = 38;
+  const rowHeights = rows.map(({ lineNumber, row }) => {
+    const lineHeight = measureTextBlockHeight({
+      context,
+      font: "700 8px Arial, sans-serif",
+      lineHeight: 10,
+      maxLines: 4,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[0] ?? 0) - 16,
+      text: formatExpenseLineReferenceCode(
+        source.expenseDate,
+        lineNumber,
+        source.displayExpenseReference,
+      ),
+    });
+    const expenseTypeHeight = measureTextBlockHeight({
+      context,
+      font: "600 11px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 8,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[1] ?? 0) - 16,
+      text: formatExportExpenseTypeLabel(row.typeId, source.exportLanguage),
+    });
+    const remarkHeight = measureTextBlockHeight({
+      context,
+      font: "400 10px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 18,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[2] ?? 0) - 16,
+      text: row.remark || source.exportCopy.emptyRemark,
+    });
+    const amountHeight = measureTextBlockHeight({
+      context,
+      font: "600 11px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 2,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[3] ?? 0) - 16,
+      text: row.amount.trim()
+        ? formatPrintAmount(parseAmount(row.amount), source.exportLanguage)
+        : "-",
+    });
+
+    return Math.max(38, lineHeight, expenseTypeHeight, remarkHeight, amountHeight) + 14;
+  });
   const tableHeight =
     rows.length === 0
       ? 48
-      : tableHeaderHeight + tableRowHeight * rows.length;
+      : tableHeaderHeight + rowHeights.reduce((sum, height) => sum + height, 0);
 
   context.save();
   context.fillStyle = "rgba(0,0,0,0.035)";
@@ -1155,14 +1326,16 @@ async function renderFormPageCanvas(
       y: tableY + tableHeaderHeight + 12,
     });
   } else {
+    let rowTop = tableY + tableHeaderHeight;
+
     rows.forEach(({ lineNumber, row }, rowIndex) => {
-      const rowTop = tableY + tableHeaderHeight + rowIndex * tableRowHeight;
+      const rowHeight = rowHeights[rowIndex] ?? 38;
 
       context.save();
       context.beginPath();
       context.strokeStyle = "rgba(0,0,0,0.25)";
-      context.moveTo(tableX, rowTop + tableRowHeight);
-      context.lineTo(tableX + contentWidth, rowTop + tableRowHeight);
+      context.moveTo(tableX, rowTop + rowHeight);
+      context.lineTo(tableX + contentWidth, rowTop + rowHeight);
       context.stroke();
       context.restore();
 
@@ -1171,7 +1344,7 @@ async function renderFormPageCanvas(
         context,
         font: "700 8px Arial, sans-serif",
         lineHeight: 10,
-        maxLines: 2,
+        maxLines: 4,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[0] ?? 0) - 16,
         text: formatExpenseLineReferenceCode(
           source.expenseDate,
@@ -1187,7 +1360,7 @@ async function renderFormPageCanvas(
         context,
         font: "600 11px Arial, sans-serif",
         lineHeight: 13,
-        maxLines: 2,
+        maxLines: 8,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[1] ?? 0) - 16,
         text: formatExportExpenseTypeLabel(row.typeId, source.exportLanguage),
         x: (columnLefts[1] ?? tableX) + 8,
@@ -1199,7 +1372,7 @@ async function renderFormPageCanvas(
         context,
         font: "400 10px Arial, sans-serif",
         lineHeight: 13,
-        maxLines: 2,
+        maxLines: 18,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[2] ?? 0) - 16,
         text: row.remark || source.exportCopy.emptyRemark,
         x: (columnLefts[2] ?? tableX) + 8,
@@ -1220,6 +1393,8 @@ async function renderFormPageCanvas(
         x: (columnLefts[3] ?? tableX) + 8,
         y: rowTop + 11,
       });
+
+      rowTop += rowHeight;
     });
   }
 
@@ -1795,8 +1970,8 @@ function ProtectedExpenseEditor({
     const defaultProfileDepartment = savedProfile?.department.trim() || "";
 
     if (!existingReport && !hydratedDraft) {
-      setDepartment(defaultProfileDepartment);
-      setEmployeeName(defaultProfileName);
+      setDepartment(limitTextLength(defaultProfileDepartment, DEPARTMENT_MAX_LENGTH));
+      setEmployeeName(limitTextLength(defaultProfileName, EMPLOYEE_NAME_MAX_LENGTH));
       setSelectedCompanyId("");
       setLoadedCompanyId("");
       setLoadedCompanyAddress("");
@@ -1811,14 +1986,20 @@ function ProtectedExpenseEditor({
       setRows([]);
     } else {
       setDepartment(
-        hydratedDraft?.department.trim() ||
-          existingReport?.department.trim() ||
-          defaultProfileDepartment,
+        limitTextLength(
+          hydratedDraft?.department.trim() ||
+            existingReport?.department.trim() ||
+            defaultProfileDepartment,
+          DEPARTMENT_MAX_LENGTH,
+        ),
       );
       setEmployeeName(
-        hydratedDraft?.employeeName.trim() ||
-          existingReport?.employeeName.trim() ||
-          defaultProfileName,
+        limitTextLength(
+          hydratedDraft?.employeeName.trim() ||
+            existingReport?.employeeName.trim() ||
+            defaultProfileName,
+          EMPLOYEE_NAME_MAX_LENGTH,
+        ),
       );
       setSelectedCompanyId(hydratedDraft?.companyId ?? existingReport?.companyId ?? "");
       setLoadedCompanyId(existingReport?.companyId ?? "");
@@ -1830,10 +2011,17 @@ function ProtectedExpenseEditor({
       setLoadedCompanyLogoUrl(existingReport?.companyLogoUrl ?? "");
       setExportLanguage(hydratedDraft?.exportLanguage ?? existingReport?.exportLanguage ?? "en");
       setExpenseCode(existingReport?.expenseCode ?? "");
-      setNote(hydratedDraft?.note ?? existingReport?.note ?? "");
+      setNote(
+        limitTextLength(
+          hydratedDraft?.note ?? existingReport?.note ?? "",
+          EXPORT_NOTE_MAX_LENGTH,
+        ),
+      );
       setRows(
-        hydratedDraft?.rows ??
-          (existingReport ? buildRowsFromLoadedReport(existingReport.rows) : []),
+        limitExpenseRowsForExport(
+          hydratedDraft?.rows ??
+            (existingReport ? buildRowsFromLoadedReport(existingReport.rows) : []),
+        ),
       );
     }
 
@@ -1944,14 +2132,23 @@ function ProtectedExpenseEditor({
         !loadedCompanyId &&
         Boolean(loadedCompanyName.trim() || loadedCompanyLogoUrl)));
   const selectedCompanyName =
-    selectedCompany?.companyName ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyName : "");
+    limitTextLength(
+      selectedCompany?.companyName ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyName : ""),
+      COMPANY_NAME_MAX_LENGTH,
+    );
   const selectedCompanyAddress =
-    selectedCompany?.companyAddress ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyAddress : "");
+    limitTextLength(
+      selectedCompany?.companyAddress ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyAddress : ""),
+      COMPANY_ADDRESS_MAX_LENGTH,
+    );
   const selectedCompanyTaxId =
-    selectedCompany?.companyTaxId ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyTaxId : "");
+    limitTextLength(
+      selectedCompany?.companyTaxId ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyTaxId : ""),
+      COMPANY_TAX_ID_MAX_LENGTH,
+    );
   const selectedCompanyLogoBucketName =
     selectedCompany?.logoBucketName ??
     (shouldUseLoadedCompanySnapshot ? loadedCompanyLogoBucketName : "");
@@ -2056,7 +2253,7 @@ function ProtectedExpenseEditor({
       if (saveResult.didUpload) {
         skipNextAutosaveRef.current = true;
         skipNextDraftWriteRef.current = true;
-        setRows(saveResult.rows);
+        setRows(limitExpenseRowsForExport(saveResult.rows));
       }
 
       return saveResult.expenseCode;
@@ -2386,6 +2583,12 @@ function ProtectedExpenseEditor({
         ? "The selected company profile is missing a logo. Update it in Company Headers before exporting."
         : null;
   const canExport = exportValidationMessage === null;
+  const jumpToMobileSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
   const printableReceipts: PrintableReceiptEntry[] = populatedRowsWithLineNumbers.flatMap(
     ({ lineNumber, row }) =>
     row.receipts.map((receipt, receiptIndex) => ({
@@ -2934,16 +3137,16 @@ function ProtectedExpenseEditor({
   }
 
   return (
-    <div className="page-shell min-h-screen">
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+    <div className="page-shell min-h-screen pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-8">
         <section className="screen-only">
-          <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-            <CardHeader className="gap-6 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="space-y-4">
+          <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
+            <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:gap-6 sm:px-6 sm:py-6">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
-                      className="rounded-full border-white/10 bg-white/5 px-4 py-1 text-[0.7rem] uppercase tracking-[0.28em] text-primary"
+                      className="rounded-full border-white/10 bg-white/5 px-3 py-1 text-[0.66rem] uppercase tracking-[0.22em] text-primary sm:px-4 sm:text-[0.7rem] sm:tracking-[0.28em]"
                       variant="outline"
                     >
                       Daily expenses
@@ -2956,44 +3159,23 @@ function ProtectedExpenseEditor({
                     </Badge>
                   </div>
 
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
+                  <div className="space-y-2 sm:space-y-3">
+                    <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-muted-foreground sm:text-xs sm:tracking-[0.3em]">
                       Simple reimbursement page
                     </p>
-                    <CardTitle className="font-serif text-3xl tracking-[-0.03em] sm:text-5xl">
+                    <CardTitle className="font-serif text-[2rem] leading-[1.05] tracking-[-0.03em] sm:text-5xl">
                       {formatDisplayDate(expenseDate)}
                     </CardTitle>
-                    <CardDescription className="max-w-3xl text-sm leading-7 sm:text-base">
+                    <CardDescription className="max-w-3xl text-sm leading-6 sm:text-base sm:leading-7">
                       Add each expense for this day, attach one or more receipt photos,
                       then export a clean PDF with extra receipt pages.
                     </CardDescription>
                   </div>
                 </div>
 
-                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <ThemeSettingsSheet userEmail={session.userEmail} />
-                  {isMobileLayout ? (
-                    <Button
-                      className="w-full rounded-full px-4 sm:w-auto"
-                      disabled={isExportBusy || !canExport}
-                      size="sm"
-                      type="button"
-                      onClick={() => {
-                        void handleDirectMobileExport();
-                      }}
-                    >
-                      {isExportBusy ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                      {isExportBusy
-                        ? isSavingPdf
-                          ? "Downloading..."
-                          : "Preparing PDF..."
-                        : "Download PDF"}
-                    </Button>
-                  ) : (
+                  {!isMobileLayout ? (
                     <Button
                       className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
                       disabled={isExportBusy || !canExport}
@@ -3015,7 +3197,7 @@ function ProtectedExpenseEditor({
                           : "Preparing export..."
                         : "Export PDF"}
                     </Button>
-                  )}
+                  ) : null}
                   <Button
                     className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
                     size="sm"
@@ -3032,7 +3214,7 @@ function ProtectedExpenseEditor({
               </div>
 
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
                   <EditorMetric
                     label="Reference"
                     value={displayExpenseReference}
@@ -3056,7 +3238,7 @@ function ProtectedExpenseEditor({
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-center">
                   <Button
                     asChild
                     className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
@@ -3066,7 +3248,7 @@ function ProtectedExpenseEditor({
                     <Link href="/dashboard">Back to dashboard</Link>
                   </Button>
                   <Button
-                    className="w-full rounded-full px-5 sm:w-auto"
+                    className="hidden rounded-full px-5 md:inline-flex"
                     size="sm"
                     type="button"
                     onClick={addRow}
@@ -3081,31 +3263,46 @@ function ProtectedExpenseEditor({
 
           <TopRouteTabs accountRole={account.role} activeSection="expenses" />
 
+          <div className="mt-5">
+            <MobileExpenseWorkflowSummary
+              canExport={canExport}
+              companyName={selectedCompanyName}
+              exportIssue={exportValidationMessage}
+              filledRows={populatedRows.length}
+              onJumpToExportSetup={() => jumpToMobileSection("mobile-export-setup")}
+              onJumpToRows={() => jumpToMobileSection("mobile-expense-rows")}
+              receiptCount={totalReceipts}
+            />
+          </div>
+
           <main className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(18rem,22rem)]">
-            <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-              <CardHeader className="gap-4 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
+            <Card
+              className="premium-panel scroll-mt-5 rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]"
+              id="mobile-expense-rows"
+            >
+              <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:px-6 sm:py-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div className="space-y-2">
                     <Badge className="rounded-full px-3 py-1" variant="secondary">
                       Expense rows
                     </Badge>
-                    <CardTitle className="font-serif text-3xl tracking-tight">
+                    <CardTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
                       Daily line items
                     </CardTitle>
-                    <CardDescription className="text-sm leading-7 sm:text-base">
+                    <CardDescription className="text-sm leading-6 sm:text-base sm:leading-7">
                       Keep the list lightweight. Expand a row only when you need to edit
                       the amount, remark, or receipt photos.
                     </CardDescription>
                   </div>
 
-                  <Button className="w-full rounded-full px-5 sm:w-auto" type="button" onClick={addRow}>
+                  <Button className="hidden rounded-full px-5 md:inline-flex" type="button" onClick={addRow}>
                     <Plus className="size-4" />
                     Add row
                   </Button>
                 </div>
               </CardHeader>
 
-              <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
+              <CardContent className="px-4 py-4 sm:px-6 sm:py-6">
                 {rows.length === 0 ? (
                   <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-background/60 px-5 py-12 text-center">
                     <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
@@ -3121,7 +3318,7 @@ function ProtectedExpenseEditor({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-[1.6rem] border border-white/10 bg-background/55 px-4 py-3">
+                    <div className="hidden rounded-[1.6rem] border border-white/10 bg-background/55 px-4 py-3 sm:block">
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <Badge className="rounded-full px-3 py-1" variant="outline">
                           Adds multiple receipt photos
@@ -3247,15 +3444,26 @@ function ProtectedExpenseEditor({
                                 <Textarea
                                   className="min-h-24 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                                   data-auto-resize="true"
+                                  maxLength={EXPENSE_REMARK_MAX_LENGTH}
                                   onInput={(event) => {
                                     resizeTextareaElement(event.currentTarget);
                                   }}
                                   placeholder="What was this expense for?"
                                   value={row.remark}
                                   onChange={(event) =>
-                                    updateRow(row.id, "remark", event.target.value)
+                                    updateRow(
+                                      row.id,
+                                      "remark",
+                                      limitTextLength(
+                                        event.target.value,
+                                        EXPENSE_REMARK_MAX_LENGTH,
+                                      ),
+                                    )
                                   }
                                 />
+                                <span className="block text-right text-xs text-muted-foreground">
+                                  {row.remark.length}/{EXPENSE_REMARK_MAX_LENGTH}
+                                </span>
                               </label>
 
                               <div className="rounded-[1.45rem] border border-white/10 bg-background/55 p-3">
@@ -3349,8 +3557,11 @@ function ProtectedExpenseEditor({
             </Card>
 
             <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-              <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-                <CardHeader className="gap-3 border-b border-border/60 px-5 py-5">
+              <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
+                <CardHeader
+                  className="scroll-mt-5 gap-3 border-b border-border/60 px-4 py-4 sm:px-5 sm:py-5"
+                  id="mobile-export-setup"
+                >
                   <Badge className="rounded-full px-3 py-1" variant="secondary">
                     Export setup
                   </Badge>
@@ -3362,7 +3573,7 @@ function ProtectedExpenseEditor({
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-5 px-5 py-5">
+                <CardContent className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-foreground">
                       Company for this form
@@ -3372,7 +3583,7 @@ function ProtectedExpenseEditor({
                       value={selectedCompanyId || EMPTY_COMPANY_VALUE}
                       onValueChange={handleCompanySelect}
                     >
-                      <SelectTrigger className="h-11 rounded-2xl border-white/10 bg-background/75 px-4">
+                      <SelectTrigger className="h-11 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 text-left">
                         <SelectValue placeholder="Select a saved company" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
@@ -3400,9 +3611,9 @@ function ProtectedExpenseEditor({
                     )}
                   </label>
 
-                  <div className="rounded-3xl border border-white/10 bg-background/65 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/85">
+                  <div className="rounded-[1.5rem] border border-white/10 bg-background/65 p-3 sm:rounded-3xl sm:p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-background/85 sm:h-16 sm:w-16 sm:rounded-3xl">
                         {selectedCompanyLogoUrl ? (
                           <Image
                             alt={selectedCompanyName || "Selected company logo"}
@@ -3417,20 +3628,20 @@ function ProtectedExpenseEditor({
                         )}
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
                           Company on the form
                         </p>
-                        <p className="mt-2 truncate text-sm font-medium text-foreground">
+                        <p className="mt-2 break-words text-sm font-medium leading-5 text-foreground [overflow-wrap:anywhere]">
                           {selectedCompanyName || "No company selected yet"}
                         </p>
                         {selectedCompanyTaxId ? (
-                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="mt-1 break-all text-xs uppercase tracking-[0.08em] text-muted-foreground sm:tracking-[0.2em]">
                             {exportCopy.companyTaxId}: {selectedCompanyTaxId}
                           </p>
                         ) : null}
                         {selectedCompanyAddress ? (
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
                             {selectedCompanyAddress}
                           </p>
                         ) : null}
@@ -3473,28 +3684,40 @@ function ProtectedExpenseEditor({
                     <span className="text-sm font-medium text-foreground">Employee name</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                      maxLength={EMPLOYEE_NAME_MAX_LENGTH}
                       placeholder="Who is submitting this form?"
                       type="text"
                       value={employeeName}
                       onChange={(event) => {
                         setPrintError(null);
-                        setEmployeeName(event.target.value);
+                        setEmployeeName(
+                          limitTextLength(event.target.value, EMPLOYEE_NAME_MAX_LENGTH),
+                        );
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {employeeName.length}/{EMPLOYEE_NAME_MAX_LENGTH}
+                    </span>
                   </label>
 
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-foreground">Department</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                      maxLength={DEPARTMENT_MAX_LENGTH}
                       placeholder="Which department is submitting this form?"
                       type="text"
                       value={department}
                       onChange={(event) => {
                         setPrintError(null);
-                        setDepartment(event.target.value);
+                        setDepartment(
+                          limitTextLength(event.target.value, DEPARTMENT_MAX_LENGTH),
+                        );
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {department.length}/{DEPARTMENT_MAX_LENGTH}
+                    </span>
                   </label>
 
                   <label className="block space-y-2">
@@ -3502,6 +3725,7 @@ function ProtectedExpenseEditor({
                     <Textarea
                       className="min-h-28 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                       data-auto-resize="true"
+                      maxLength={EXPORT_NOTE_MAX_LENGTH}
                       onInput={(event) => {
                         resizeTextareaElement(event.currentTarget);
                       }}
@@ -3509,9 +3733,12 @@ function ProtectedExpenseEditor({
                       value={note}
                       onChange={(event) => {
                         setPrintError(null);
-                        setNote(event.target.value);
+                        setNote(limitTextLength(event.target.value, EXPORT_NOTE_MAX_LENGTH));
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {note.length}/{EXPORT_NOTE_MAX_LENGTH}
+                    </span>
                   </label>
                 </CardContent>
               </Card>
@@ -3578,7 +3805,7 @@ function ProtectedExpenseEditor({
                         <Globe2 className="size-4" />
                       </span>
                       <p className="text-sm leading-7 text-foreground">
-                        The PDF fits up to fifteen expense lines per page, keeps the same
+                        The PDF fits up to five expense lines per page, keeps the same
                         layout on continuation pages, and adds up to four receipt photos
                         on each extra page.
                       </p>
@@ -3649,6 +3876,19 @@ function ProtectedExpenseEditor({
             </div>
           </main>
         </section>
+
+        <MobileExpenseBottomDock
+          canExport={canExport}
+          exportIssue={exportValidationMessage}
+          filledRows={populatedRows.length}
+          isExportBusy={isExportBusy}
+          isSavingPdf={isSavingPdf}
+          onAddRow={addRow}
+          onExport={() => {
+            void handleDirectMobileExport();
+          }}
+          totalAmountLabel={formatCurrency(totalAmount)}
+        />
 
         <Dialog
           open={!isMobileLayout && isExportPreviewOpen}
@@ -3870,8 +4110,18 @@ function PrintExpenseFormPage({
 }) {
   const trimmedCompanyAddress = companyAddress.trim();
   const hasCompanyAddress = Boolean(trimmedCompanyAddress);
+  const companyNameText = selectedCompanyName || exportCopy.companyPending;
+  const shouldStackAddressHeader = shouldStackCompanyAddressHeader(
+    companyNameText,
+    trimmedCompanyAddress,
+  );
   const headerAddressWidth = getCompanyAddressHeaderWidth(trimmedCompanyAddress);
-  const headerSideWidth = hasCompanyAddress ? headerAddressWidth : totalPages > 1 ? 144 : 0;
+  const headerSideWidth =
+    hasCompanyAddress && !shouldStackAddressHeader
+      ? headerAddressWidth
+      : totalPages > 1
+        ? 144
+        : 0;
 
   return (
     <section
@@ -3911,11 +4161,11 @@ function PrintExpenseFormPage({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black/55">
                   {exportCopy.companyCaption}
                 </p>
-                <h2 className="mt-1 line-clamp-2 font-serif text-[1.14rem] leading-tight">
-                  {selectedCompanyName || exportCopy.companyPending}
+                <h2 className="mt-1 font-serif text-[1.02rem] leading-[1.15] [overflow-wrap:anywhere]">
+                  {companyNameText}
                 </h2>
                 {companyTaxId ? (
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/60">
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/60 [overflow-wrap:anywhere]">
                     {exportCopy.companyTaxId}: {companyTaxId}
                   </p>
                 ) : null}
@@ -3934,7 +4184,7 @@ function PrintExpenseFormPage({
                       {formatFormPageCounter(currentPage, totalPages, exportLanguage)}
                     </p>
                   ) : null}
-                  {hasCompanyAddress ? (
+                  {hasCompanyAddress && !shouldStackAddressHeader ? (
                     <p
                       className={`whitespace-pre-line break-words text-[10px] leading-[1.1rem] text-black/65 ${
                         totalPages > 1 ? "mt-2" : "mt-0.5"
@@ -3946,6 +4196,11 @@ function PrintExpenseFormPage({
                 </div>
               ) : null}
             </div>
+            {hasCompanyAddress && shouldStackAddressHeader ? (
+              <p className="mt-2 whitespace-pre-line break-words text-[9px] leading-[0.9rem] text-black/65">
+                {trimmedCompanyAddress}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -3967,7 +4222,7 @@ function PrintExpenseFormPage({
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/55">
             {exportCopy.note}
           </p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-[1.05rem]">
+          <p className="mt-1 whitespace-pre-line break-words text-[11px] leading-[1.05rem]">
             {note || exportCopy.noteFallback}
           </p>
         </div>
@@ -4013,7 +4268,7 @@ function PrintExpenseFormPage({
                   </p>
                 </div>
                 <div className="border-r border-b border-black/25 px-2 py-1.5">
-                  <p className="line-clamp-2 leading-[1rem] text-black/78">
+                  <p className="whitespace-pre-line break-words leading-[1rem] text-black/78">
                     {row.remark || exportCopy.emptyRemark}
                   </p>
                 </div>

@@ -39,6 +39,14 @@ type CompanyMessage = {
   text: string;
 };
 
+const COMPANY_NAME_MAX_LENGTH = 96;
+const COMPANY_TAX_ID_MAX_LENGTH = 32;
+const COMPANY_ADDRESS_MAX_LENGTH = 240;
+
+function limitTextLength(value: string, maxLength: number) {
+  return value.slice(0, maxLength);
+}
+
 export default function CompanySettingsView() {
   return (
     <AuthGate>
@@ -190,9 +198,9 @@ function ProtectedCompanySettings({
 
   const openEditCompany = (company: CompanyRecord) => {
     setEditingCompany(company);
-    setEditCompanyAddressDraft(company.companyAddress);
-    setEditCompanyNameDraft(company.companyName);
-    setEditCompanyTaxIdDraft(company.companyTaxId);
+    setEditCompanyAddressDraft(limitTextLength(company.companyAddress, COMPANY_ADDRESS_MAX_LENGTH));
+    setEditCompanyNameDraft(limitTextLength(company.companyName, COMPANY_NAME_MAX_LENGTH));
+    setEditCompanyTaxIdDraft(limitTextLength(company.companyTaxId, COMPANY_TAX_ID_MAX_LENGTH));
     setEditCompanyLogoFile(null);
     setEditCompanyLogoDraft(company.logoUrl);
     setEditCompanyMessage(null);
@@ -485,32 +493,56 @@ function ProtectedCompanySettings({
                   <span className="text-sm font-medium text-foreground">Company name</span>
                   <Input
                     className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                    maxLength={COMPANY_NAME_MAX_LENGTH}
                     placeholder="NNPC Consulting Company Limited"
                     type="text"
                     value={companyNameDraft}
-                    onChange={(event) => setCompanyNameDraft(event.target.value)}
+                    onChange={(event) =>
+                      setCompanyNameDraft(
+                        limitTextLength(event.target.value, COMPANY_NAME_MAX_LENGTH),
+                      )
+                    }
                   />
+                  <span className="block text-right text-xs text-muted-foreground">
+                    {companyNameDraft.length}/{COMPANY_NAME_MAX_LENGTH}
+                  </span>
                 </label>
 
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-foreground">Company Tax ID</span>
                   <Input
                     className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                    maxLength={COMPANY_TAX_ID_MAX_LENGTH}
                     placeholder="0105539123456"
                     type="text"
                     value={companyTaxIdDraft}
-                    onChange={(event) => setCompanyTaxIdDraft(event.target.value)}
+                    onChange={(event) =>
+                      setCompanyTaxIdDraft(
+                        limitTextLength(event.target.value, COMPANY_TAX_ID_MAX_LENGTH),
+                      )
+                    }
                   />
+                  <span className="block text-right text-xs text-muted-foreground">
+                    {companyTaxIdDraft.length}/{COMPANY_TAX_ID_MAX_LENGTH}
+                  </span>
                 </label>
 
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-foreground">Company address</span>
                   <Textarea
                     className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
+                    maxLength={COMPANY_ADDRESS_MAX_LENGTH}
                     placeholder="99 Example Tower, 18th Floor, Sukhumvit Road, Khlong Toei, Bangkok 10110"
                     value={companyAddressDraft}
-                    onChange={(event) => setCompanyAddressDraft(event.target.value)}
+                    onChange={(event) =>
+                      setCompanyAddressDraft(
+                        limitTextLength(event.target.value, COMPANY_ADDRESS_MAX_LENGTH),
+                      )
+                    }
                   />
+                  <span className="block text-right text-xs text-muted-foreground">
+                    {companyAddressDraft.length}/{COMPANY_ADDRESS_MAX_LENGTH}
+                  </span>
                 </label>
 
                 <label className="block space-y-2">
@@ -631,32 +663,56 @@ function ProtectedCompanySettings({
                 <span className="text-sm font-medium text-foreground">Company name</span>
                 <Input
                   className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                  maxLength={COMPANY_NAME_MAX_LENGTH}
                   placeholder="NNPC Consulting Company Limited"
                   type="text"
                   value={editCompanyNameDraft}
-                  onChange={(event) => setEditCompanyNameDraft(event.target.value)}
+                  onChange={(event) =>
+                    setEditCompanyNameDraft(
+                      limitTextLength(event.target.value, COMPANY_NAME_MAX_LENGTH),
+                    )
+                  }
                 />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {editCompanyNameDraft.length}/{COMPANY_NAME_MAX_LENGTH}
+                </span>
               </label>
 
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-foreground">Company Tax ID</span>
                 <Input
                   className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                  maxLength={COMPANY_TAX_ID_MAX_LENGTH}
                   placeholder="0105539123456"
                   type="text"
                   value={editCompanyTaxIdDraft}
-                  onChange={(event) => setEditCompanyTaxIdDraft(event.target.value)}
+                  onChange={(event) =>
+                    setEditCompanyTaxIdDraft(
+                      limitTextLength(event.target.value, COMPANY_TAX_ID_MAX_LENGTH),
+                    )
+                  }
                 />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {editCompanyTaxIdDraft.length}/{COMPANY_TAX_ID_MAX_LENGTH}
+                </span>
               </label>
 
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-foreground">Company address</span>
                 <Textarea
                   className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
+                  maxLength={COMPANY_ADDRESS_MAX_LENGTH}
                   placeholder="99 Example Tower, 18th Floor, Sukhumvit Road, Khlong Toei, Bangkok 10110"
                   value={editCompanyAddressDraft}
-                  onChange={(event) => setEditCompanyAddressDraft(event.target.value)}
+                  onChange={(event) =>
+                    setEditCompanyAddressDraft(
+                      limitTextLength(event.target.value, COMPANY_ADDRESS_MAX_LENGTH),
+                    )
+                  }
                 />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {editCompanyAddressDraft.length}/{COMPANY_ADDRESS_MAX_LENGTH}
+                </span>
               </label>
 
               <label className="block space-y-2">
