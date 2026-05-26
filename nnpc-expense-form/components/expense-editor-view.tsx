@@ -34,6 +34,10 @@ import {
   X,
 } from "lucide-react";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
+import {
+  MobileExpenseBottomDock,
+  MobileExpenseWorkflowSummary,
+} from "@/components/mobile/expense-mobile-workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,6 +104,7 @@ import {
   createEmptyRow,
   deriveDisplayName,
   findExpenseTypeLabel,
+  formatCurrency,
   formatFileSize,
   hasRowContent,
   parseAmount,
@@ -2578,6 +2583,12 @@ function ProtectedExpenseEditor({
         ? "The selected company profile is missing a logo. Update it in Company Headers before exporting."
         : null;
   const canExport = exportValidationMessage === null;
+  const jumpToMobileSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
   const printableReceipts: PrintableReceiptEntry[] = populatedRowsWithLineNumbers.flatMap(
     ({ lineNumber, row }) =>
     row.receipts.map((receipt, receiptIndex) => ({
@@ -3126,16 +3137,16 @@ function ProtectedExpenseEditor({
   }
 
   return (
-    <div className="page-shell min-h-screen">
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+    <div className="page-shell min-h-screen pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-8">
         <section className="screen-only">
-          <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-            <CardHeader className="gap-6 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="space-y-4">
+          <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
+            <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:gap-6 sm:px-6 sm:py-6">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
-                      className="rounded-full border-white/10 bg-white/5 px-4 py-1 text-[0.7rem] uppercase tracking-[0.28em] text-primary"
+                      className="rounded-full border-white/10 bg-white/5 px-3 py-1 text-[0.66rem] uppercase tracking-[0.22em] text-primary sm:px-4 sm:text-[0.7rem] sm:tracking-[0.28em]"
                       variant="outline"
                     >
                       Daily expenses
@@ -3148,44 +3159,23 @@ function ProtectedExpenseEditor({
                     </Badge>
                   </div>
 
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
+                  <div className="space-y-2 sm:space-y-3">
+                    <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-muted-foreground sm:text-xs sm:tracking-[0.3em]">
                       Simple reimbursement page
                     </p>
-                    <CardTitle className="font-serif text-3xl tracking-[-0.03em] sm:text-5xl">
+                    <CardTitle className="font-serif text-[2rem] leading-[1.05] tracking-[-0.03em] sm:text-5xl">
                       {formatDisplayDate(expenseDate)}
                     </CardTitle>
-                    <CardDescription className="max-w-3xl text-sm leading-7 sm:text-base">
+                    <CardDescription className="max-w-3xl text-sm leading-6 sm:text-base sm:leading-7">
                       Add each expense for this day, attach one or more receipt photos,
                       then export a clean PDF with extra receipt pages.
                     </CardDescription>
                   </div>
                 </div>
 
-                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <ThemeSettingsSheet userEmail={session.userEmail} />
-                  {isMobileLayout ? (
-                    <Button
-                      className="w-full rounded-full px-4 sm:w-auto"
-                      disabled={isExportBusy || !canExport}
-                      size="sm"
-                      type="button"
-                      onClick={() => {
-                        void handleDirectMobileExport();
-                      }}
-                    >
-                      {isExportBusy ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                      {isExportBusy
-                        ? isSavingPdf
-                          ? "Downloading..."
-                          : "Preparing PDF..."
-                        : "Download PDF"}
-                    </Button>
-                  ) : (
+                  {!isMobileLayout ? (
                     <Button
                       className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
                       disabled={isExportBusy || !canExport}
@@ -3207,7 +3197,7 @@ function ProtectedExpenseEditor({
                           : "Preparing export..."
                         : "Export PDF"}
                     </Button>
-                  )}
+                  ) : null}
                   <Button
                     className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
                     size="sm"
@@ -3224,7 +3214,7 @@ function ProtectedExpenseEditor({
               </div>
 
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
                   <EditorMetric
                     label="Reference"
                     value={displayExpenseReference}
@@ -3248,7 +3238,7 @@ function ProtectedExpenseEditor({
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-center">
                   <Button
                     asChild
                     className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
@@ -3258,7 +3248,7 @@ function ProtectedExpenseEditor({
                     <Link href="/dashboard">Back to dashboard</Link>
                   </Button>
                   <Button
-                    className="w-full rounded-full px-5 sm:w-auto"
+                    className="hidden rounded-full px-5 md:inline-flex"
                     size="sm"
                     type="button"
                     onClick={addRow}
@@ -3273,31 +3263,46 @@ function ProtectedExpenseEditor({
 
           <TopRouteTabs accountRole={account.role} activeSection="expenses" />
 
+          <div className="mt-5">
+            <MobileExpenseWorkflowSummary
+              canExport={canExport}
+              companyName={selectedCompanyName}
+              exportIssue={exportValidationMessage}
+              filledRows={populatedRows.length}
+              onJumpToExportSetup={() => jumpToMobileSection("mobile-export-setup")}
+              onJumpToRows={() => jumpToMobileSection("mobile-expense-rows")}
+              receiptCount={totalReceipts}
+            />
+          </div>
+
           <main className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(18rem,22rem)]">
-            <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-              <CardHeader className="gap-4 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
+            <Card
+              className="premium-panel scroll-mt-5 rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]"
+              id="mobile-expense-rows"
+            >
+              <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:px-6 sm:py-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div className="space-y-2">
                     <Badge className="rounded-full px-3 py-1" variant="secondary">
                       Expense rows
                     </Badge>
-                    <CardTitle className="font-serif text-3xl tracking-tight">
+                    <CardTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
                       Daily line items
                     </CardTitle>
-                    <CardDescription className="text-sm leading-7 sm:text-base">
+                    <CardDescription className="text-sm leading-6 sm:text-base sm:leading-7">
                       Keep the list lightweight. Expand a row only when you need to edit
                       the amount, remark, or receipt photos.
                     </CardDescription>
                   </div>
 
-                  <Button className="w-full rounded-full px-5 sm:w-auto" type="button" onClick={addRow}>
+                  <Button className="hidden rounded-full px-5 md:inline-flex" type="button" onClick={addRow}>
                     <Plus className="size-4" />
                     Add row
                   </Button>
                 </div>
               </CardHeader>
 
-              <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
+              <CardContent className="px-4 py-4 sm:px-6 sm:py-6">
                 {rows.length === 0 ? (
                   <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-background/60 px-5 py-12 text-center">
                     <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
@@ -3313,7 +3318,7 @@ function ProtectedExpenseEditor({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-[1.6rem] border border-white/10 bg-background/55 px-4 py-3">
+                    <div className="hidden rounded-[1.6rem] border border-white/10 bg-background/55 px-4 py-3 sm:block">
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <Badge className="rounded-full px-3 py-1" variant="outline">
                           Adds multiple receipt photos
@@ -3552,8 +3557,11 @@ function ProtectedExpenseEditor({
             </Card>
 
             <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-              <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-                <CardHeader className="gap-3 border-b border-border/60 px-5 py-5">
+              <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
+                <CardHeader
+                  className="scroll-mt-5 gap-3 border-b border-border/60 px-4 py-4 sm:px-5 sm:py-5"
+                  id="mobile-export-setup"
+                >
                   <Badge className="rounded-full px-3 py-1" variant="secondary">
                     Export setup
                   </Badge>
@@ -3565,7 +3573,7 @@ function ProtectedExpenseEditor({
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-5 px-5 py-5">
+                <CardContent className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-foreground">
                       Company for this form
@@ -3575,7 +3583,7 @@ function ProtectedExpenseEditor({
                       value={selectedCompanyId || EMPTY_COMPANY_VALUE}
                       onValueChange={handleCompanySelect}
                     >
-                      <SelectTrigger className="h-11 rounded-2xl border-white/10 bg-background/75 px-4">
+                      <SelectTrigger className="h-11 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 text-left">
                         <SelectValue placeholder="Select a saved company" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
@@ -3603,9 +3611,9 @@ function ProtectedExpenseEditor({
                     )}
                   </label>
 
-                  <div className="rounded-3xl border border-white/10 bg-background/65 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/85">
+                  <div className="rounded-[1.5rem] border border-white/10 bg-background/65 p-3 sm:rounded-3xl sm:p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-background/85 sm:h-16 sm:w-16 sm:rounded-3xl">
                         {selectedCompanyLogoUrl ? (
                           <Image
                             alt={selectedCompanyName || "Selected company logo"}
@@ -3620,20 +3628,20 @@ function ProtectedExpenseEditor({
                         )}
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
                           Company on the form
                         </p>
-                        <p className="mt-2 truncate text-sm font-medium text-foreground">
+                        <p className="mt-2 break-words text-sm font-medium leading-5 text-foreground [overflow-wrap:anywhere]">
                           {selectedCompanyName || "No company selected yet"}
                         </p>
                         {selectedCompanyTaxId ? (
-                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="mt-1 break-all text-xs uppercase tracking-[0.08em] text-muted-foreground sm:tracking-[0.2em]">
                             {exportCopy.companyTaxId}: {selectedCompanyTaxId}
                           </p>
                         ) : null}
                         {selectedCompanyAddress ? (
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
                             {selectedCompanyAddress}
                           </p>
                         ) : null}
@@ -3868,6 +3876,19 @@ function ProtectedExpenseEditor({
             </div>
           </main>
         </section>
+
+        <MobileExpenseBottomDock
+          canExport={canExport}
+          exportIssue={exportValidationMessage}
+          filledRows={populatedRows.length}
+          isExportBusy={isExportBusy}
+          isSavingPdf={isSavingPdf}
+          onAddRow={addRow}
+          onExport={() => {
+            void handleDirectMobileExport();
+          }}
+          totalAmountLabel={formatCurrency(totalAmount)}
+        />
 
         <Dialog
           open={!isMobileLayout && isExportPreviewOpen}
