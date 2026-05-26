@@ -117,13 +117,20 @@ import { getUserProfile, type UserProfile } from "../lib/profile-data";
 import { buildPublicStorageUrl } from "../lib/supabase-api";
 
 const EMPTY_COMPANY_VALUE = "__none__";
-const EXPORT_FORM_ROWS_PER_PAGE = 15;
+const EXPORT_FORM_ROWS_PER_PAGE = 5;
 const RECEIPTS_PER_PAGE = 4;
 const IMAGE_PRELOAD_TIMEOUT_MS = 12_000;
 const PRINT_TABLE_GRID_TEMPLATE = "1.6fr 1.75fr 2.95fr 1.25fr";
 const EXPORT_PAGE_WIDTH_PX = 794;
 const EXPORT_PAGE_HEIGHT_PX = 1123;
 const BLANK_PRINT_FIELD_VALUE = " ";
+const EMPLOYEE_NAME_MAX_LENGTH = 64;
+const DEPARTMENT_MAX_LENGTH = 48;
+const EXPORT_NOTE_MAX_LENGTH = 240;
+const EXPENSE_REMARK_MAX_LENGTH = 220;
+const COMPANY_NAME_MAX_LENGTH = 96;
+const COMPANY_TAX_ID_MAX_LENGTH = 32;
+const COMPANY_ADDRESS_MAX_LENGTH = 240;
 
 const EXPORT_COPY: Record<
   ExportLanguage,
@@ -389,6 +396,17 @@ function resizeTextareaElement(element: HTMLTextAreaElement | null) {
 
   element.style.height = "0px";
   element.style.height = `${element.scrollHeight}px`;
+}
+
+function limitTextLength(value: string, maxLength: number) {
+  return value.slice(0, maxLength);
+}
+
+function limitExpenseRowsForExport(rows: ExpenseRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    remark: limitTextLength(row.remark, EXPENSE_REMARK_MAX_LENGTH),
+  }));
 }
 
 function isDataUrl(url: string) {
@@ -717,6 +735,58 @@ function drawTextBlock({
   return lines.length * lineHeight;
 }
 
+function measureTextBlockHeight({
+  context,
+  font,
+  lineHeight,
+  maxLines = Number.MAX_SAFE_INTEGER,
+  maxWidth,
+  text,
+}: {
+  context: CanvasRenderingContext2D;
+  font: string;
+  lineHeight: number;
+  maxLines?: number;
+  maxWidth: number;
+  text: string;
+}) {
+  context.save();
+  context.font = font;
+  const height = splitTextIntoLines(context, text, maxWidth, maxLines).length * lineHeight;
+  context.restore();
+
+  return height;
+}
+
+function getCompanyNameTextStyle(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+) {
+  const options = [
+    { font: "600 26px Georgia, 'Times New Roman', serif", lineHeight: 27, maxLines: 2 },
+    { font: "600 23px Georgia, 'Times New Roman', serif", lineHeight: 25, maxLines: 3 },
+    { font: "600 20px Georgia, 'Times New Roman', serif", lineHeight: 23, maxLines: 3 },
+    { font: "600 18px Georgia, 'Times New Roman', serif", lineHeight: 21, maxLines: 4 },
+  ];
+
+  context.save();
+
+  for (const option of options) {
+    context.font = option.font;
+    const lines = splitTextIntoLines(context, text, maxWidth, option.maxLines);
+    const didFit = lines.length > 0 && !lines.some((line) => line.endsWith("\u2026"));
+
+    if (didFit) {
+      context.restore();
+      return option;
+    }
+  }
+
+  context.restore();
+  return options[options.length - 1];
+}
+
 function drawHorizontalRule(
   context: CanvasRenderingContext2D,
   x: number,
@@ -750,6 +820,23 @@ function getCompanyAddressHeaderWidth(address: string) {
   }
 
   return 164;
+}
+
+function shouldStackCompanyAddressHeader(companyName: string, address: string) {
+  const trimmedCompanyName = companyName.trim();
+  const trimmedAddress = address.trim();
+
+  if (!trimmedAddress) {
+    return false;
+  }
+
+  const addressLineCount = trimmedAddress.split(/\r?\n/).filter(Boolean).length;
+
+  return (
+    trimmedAddress.length > 96 ||
+    addressLineCount > 2 ||
+    (trimmedCompanyName.length > 42 && trimmedAddress.length > 54)
+  );
 }
 
 function drawImageContain({
@@ -858,9 +945,17 @@ async function renderFormPageCanvas(
   const logoSize = 64;
   const headerTextX = contentX + logoSize + 18;
   const trimmedCompanyAddress = source.companyAddress.trim();
+  const companyNameText = source.selectedCompanyName || source.exportCopy.companyPending;
   const hasCompanyAddress = Boolean(trimmedCompanyAddress);
-  const rightHeaderWidth = getCompanyAddressHeaderWidth(trimmedCompanyAddress);
-  const headerSideReserve = hasCompanyAddress
+  const shouldStackAddressHeader = shouldStackCompanyAddressHeader(
+    companyNameText,
+    trimmedCompanyAddress,
+  );
+  const rightHeaderWidth =
+    hasCompanyAddress && !shouldStackAddressHeader
+      ? getCompanyAddressHeaderWidth(trimmedCompanyAddress)
+      : 0;
+  const headerSideReserve = rightHeaderWidth
     ? rightHeaderWidth + 24
     : source.printableFormPages.length > 1
       ? 156
@@ -915,36 +1010,45 @@ async function renderFormPageCanvas(
     y,
   });
 
+  const companyNameTextStyle = getCompanyNameTextStyle(
+    context,
+    companyNameText,
+    headerTextMaxWidth,
+  );
   const companyNameHeight = drawTextBlock({
     context,
-    font: "600 28px Georgia, 'Times New Roman', serif",
-    lineHeight: 24,
-    maxLines: 2,
+    font: companyNameTextStyle.font,
+    lineHeight: companyNameTextStyle.lineHeight,
+    maxLines: companyNameTextStyle.maxLines,
     maxWidth: headerTextMaxWidth,
-    text: source.selectedCompanyName || source.exportCopy.companyPending,
+    text: companyNameText,
     x: headerTextX,
     y: y + 16,
   });
 
+  let nextHeaderTextY = y + 16 + companyNameHeight + 5;
   const companyTaxIdHeight = source.companyTaxId
     ? drawTextBlock({
         color: "rgba(0,0,0,0.6)",
         context,
         font: "700 10px Arial, sans-serif",
-        lineHeight: 12,
-        maxLines: 1,
+        lineHeight: 13,
+        maxLines: 2,
         maxWidth: headerTextMaxWidth,
         text: `${source.exportCopy.companyTaxId.toUpperCase()}: ${source.companyTaxId}`,
         x: headerTextX,
-        y: y + 18 + companyNameHeight,
+        y: nextHeaderTextY,
       })
     : 0;
 
+  if (companyTaxIdHeight) {
+    nextHeaderTextY += companyTaxIdHeight + 5;
+  }
+
   const hasFormSubtitle = Boolean(source.exportCopy.formSubtitle.trim());
-  const subtitleY = y + 16 + companyNameHeight + companyTaxIdHeight + 4;
 
   if (hasFormSubtitle) {
-    drawTextBlock({
+    const subtitleHeight = drawTextBlock({
       color: "rgba(0,0,0,0.65)",
       context,
       font: "400 11px Arial, sans-serif",
@@ -953,11 +1057,13 @@ async function renderFormPageCanvas(
       maxWidth: headerTextMaxWidth,
       text: source.exportCopy.formSubtitle,
       x: headerTextX,
-      y: subtitleY,
+      y: nextHeaderTextY,
     });
+
+    nextHeaderTextY += subtitleHeight + 7;
   }
 
-  const titleY = hasFormSubtitle ? subtitleY + 20 : y + 16 + companyNameHeight + 8;
+  const titleY = nextHeaderTextY;
   drawTextBlock({
     context,
     font: "700 13px Arial, sans-serif",
@@ -988,7 +1094,7 @@ async function renderFormPageCanvas(
     });
   }
 
-  const addressHeight = hasCompanyAddress
+  const addressHeight = hasCompanyAddress && !shouldStackAddressHeader
     ? drawTextBlock({
         align: "right",
         color: "rgba(0,0,0,0.64)",
@@ -1002,10 +1108,28 @@ async function renderFormPageCanvas(
         y: y + (source.printableFormPages.length > 1 ? 18 : 4),
       })
     : 0;
-  const addressBottom = hasCompanyAddress
+  const sideAddressBottom = hasCompanyAddress && !shouldStackAddressHeader
     ? y + (source.printableFormPages.length > 1 ? 18 : 4) + addressHeight
     : 0;
-  const headerBottom = Math.max(y + logoSize, titleY + 18, addressBottom);
+  const stackedAddressY = titleY + 24;
+  const stackedAddressHeight =
+    hasCompanyAddress && shouldStackAddressHeader
+      ? drawTextBlock({
+          color: "rgba(0,0,0,0.64)",
+          context,
+          font: "400 9px Arial, sans-serif",
+          lineHeight: 12,
+          maxLines: 8,
+          maxWidth: contentWidth,
+          text: trimmedCompanyAddress,
+          x: contentX,
+          y: stackedAddressY,
+        })
+      : 0;
+  const stackedAddressBottom = stackedAddressHeight
+    ? stackedAddressY + stackedAddressHeight
+    : 0;
+  const headerBottom = Math.max(y + logoSize, titleY + 18, sideAddressBottom, stackedAddressBottom);
   drawHorizontalRule(context, contentX, headerBottom + 10, contentWidth, "rgba(0,0,0,0.25)");
   y = headerBottom + 26;
 
@@ -1059,27 +1183,69 @@ async function renderFormPageCanvas(
     y,
   });
 
-  drawTextBlock({
+  const noteTextHeight = drawTextBlock({
     context,
     font: "400 11px Arial, sans-serif",
     lineHeight: 16,
-    maxLines: 2,
+    maxLines: 8,
     maxWidth: contentWidth,
     text: source.note || source.exportCopy.noteFallback,
     x: contentX,
     y: y + 18,
   });
-  drawHorizontalRule(context, contentX, y + 54, contentWidth, "rgba(0,0,0,0.15)");
-  y += 70;
+  const noteRuleY = y + 18 + Math.max(noteTextHeight, 16) + 12;
+  drawHorizontalRule(context, contentX, noteRuleY, contentWidth, "rgba(0,0,0,0.15)");
+  y = noteRuleY + 16;
 
   const tableX = contentX;
   const tableY = y;
   const tableHeaderHeight = 30;
-  const tableRowHeight = 38;
+  const rowHeights = rows.map(({ lineNumber, row }) => {
+    const lineHeight = measureTextBlockHeight({
+      context,
+      font: "700 8px Arial, sans-serif",
+      lineHeight: 10,
+      maxLines: 4,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[0] ?? 0) - 16,
+      text: formatExpenseLineReferenceCode(
+        source.expenseDate,
+        lineNumber,
+        source.displayExpenseReference,
+      ),
+    });
+    const expenseTypeHeight = measureTextBlockHeight({
+      context,
+      font: "600 11px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 8,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[1] ?? 0) - 16,
+      text: formatExportExpenseTypeLabel(row.typeId, source.exportLanguage),
+    });
+    const remarkHeight = measureTextBlockHeight({
+      context,
+      font: "400 10px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 18,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[2] ?? 0) - 16,
+      text: row.remark || source.exportCopy.emptyRemark,
+    });
+    const amountHeight = measureTextBlockHeight({
+      context,
+      font: "600 11px Arial, sans-serif",
+      lineHeight: 13,
+      maxLines: 2,
+      maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[3] ?? 0) - 16,
+      text: row.amount.trim()
+        ? formatPrintAmount(parseAmount(row.amount), source.exportLanguage)
+        : "-",
+    });
+
+    return Math.max(38, lineHeight, expenseTypeHeight, remarkHeight, amountHeight) + 14;
+  });
   const tableHeight =
     rows.length === 0
       ? 48
-      : tableHeaderHeight + tableRowHeight * rows.length;
+      : tableHeaderHeight + rowHeights.reduce((sum, height) => sum + height, 0);
 
   context.save();
   context.fillStyle = "rgba(0,0,0,0.035)";
@@ -1155,14 +1321,16 @@ async function renderFormPageCanvas(
       y: tableY + tableHeaderHeight + 12,
     });
   } else {
+    let rowTop = tableY + tableHeaderHeight;
+
     rows.forEach(({ lineNumber, row }, rowIndex) => {
-      const rowTop = tableY + tableHeaderHeight + rowIndex * tableRowHeight;
+      const rowHeight = rowHeights[rowIndex] ?? 38;
 
       context.save();
       context.beginPath();
       context.strokeStyle = "rgba(0,0,0,0.25)";
-      context.moveTo(tableX, rowTop + tableRowHeight);
-      context.lineTo(tableX + contentWidth, rowTop + tableRowHeight);
+      context.moveTo(tableX, rowTop + rowHeight);
+      context.lineTo(tableX + contentWidth, rowTop + rowHeight);
       context.stroke();
       context.restore();
 
@@ -1171,7 +1339,7 @@ async function renderFormPageCanvas(
         context,
         font: "700 8px Arial, sans-serif",
         lineHeight: 10,
-        maxLines: 2,
+        maxLines: 4,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[0] ?? 0) - 16,
         text: formatExpenseLineReferenceCode(
           source.expenseDate,
@@ -1187,7 +1355,7 @@ async function renderFormPageCanvas(
         context,
         font: "600 11px Arial, sans-serif",
         lineHeight: 13,
-        maxLines: 2,
+        maxLines: 8,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[1] ?? 0) - 16,
         text: formatExportExpenseTypeLabel(row.typeId, source.exportLanguage),
         x: (columnLefts[1] ?? tableX) + 8,
@@ -1199,7 +1367,7 @@ async function renderFormPageCanvas(
         context,
         font: "400 10px Arial, sans-serif",
         lineHeight: 13,
-        maxLines: 2,
+        maxLines: 18,
         maxWidth: (EXPORT_TABLE_COLUMN_WIDTHS_PX[2] ?? 0) - 16,
         text: row.remark || source.exportCopy.emptyRemark,
         x: (columnLefts[2] ?? tableX) + 8,
@@ -1220,6 +1388,8 @@ async function renderFormPageCanvas(
         x: (columnLefts[3] ?? tableX) + 8,
         y: rowTop + 11,
       });
+
+      rowTop += rowHeight;
     });
   }
 
@@ -1795,8 +1965,8 @@ function ProtectedExpenseEditor({
     const defaultProfileDepartment = savedProfile?.department.trim() || "";
 
     if (!existingReport && !hydratedDraft) {
-      setDepartment(defaultProfileDepartment);
-      setEmployeeName(defaultProfileName);
+      setDepartment(limitTextLength(defaultProfileDepartment, DEPARTMENT_MAX_LENGTH));
+      setEmployeeName(limitTextLength(defaultProfileName, EMPLOYEE_NAME_MAX_LENGTH));
       setSelectedCompanyId("");
       setLoadedCompanyId("");
       setLoadedCompanyAddress("");
@@ -1811,14 +1981,20 @@ function ProtectedExpenseEditor({
       setRows([]);
     } else {
       setDepartment(
-        hydratedDraft?.department.trim() ||
-          existingReport?.department.trim() ||
-          defaultProfileDepartment,
+        limitTextLength(
+          hydratedDraft?.department.trim() ||
+            existingReport?.department.trim() ||
+            defaultProfileDepartment,
+          DEPARTMENT_MAX_LENGTH,
+        ),
       );
       setEmployeeName(
-        hydratedDraft?.employeeName.trim() ||
-          existingReport?.employeeName.trim() ||
-          defaultProfileName,
+        limitTextLength(
+          hydratedDraft?.employeeName.trim() ||
+            existingReport?.employeeName.trim() ||
+            defaultProfileName,
+          EMPLOYEE_NAME_MAX_LENGTH,
+        ),
       );
       setSelectedCompanyId(hydratedDraft?.companyId ?? existingReport?.companyId ?? "");
       setLoadedCompanyId(existingReport?.companyId ?? "");
@@ -1830,10 +2006,17 @@ function ProtectedExpenseEditor({
       setLoadedCompanyLogoUrl(existingReport?.companyLogoUrl ?? "");
       setExportLanguage(hydratedDraft?.exportLanguage ?? existingReport?.exportLanguage ?? "en");
       setExpenseCode(existingReport?.expenseCode ?? "");
-      setNote(hydratedDraft?.note ?? existingReport?.note ?? "");
+      setNote(
+        limitTextLength(
+          hydratedDraft?.note ?? existingReport?.note ?? "",
+          EXPORT_NOTE_MAX_LENGTH,
+        ),
+      );
       setRows(
-        hydratedDraft?.rows ??
-          (existingReport ? buildRowsFromLoadedReport(existingReport.rows) : []),
+        limitExpenseRowsForExport(
+          hydratedDraft?.rows ??
+            (existingReport ? buildRowsFromLoadedReport(existingReport.rows) : []),
+        ),
       );
     }
 
@@ -1944,14 +2127,23 @@ function ProtectedExpenseEditor({
         !loadedCompanyId &&
         Boolean(loadedCompanyName.trim() || loadedCompanyLogoUrl)));
   const selectedCompanyName =
-    selectedCompany?.companyName ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyName : "");
+    limitTextLength(
+      selectedCompany?.companyName ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyName : ""),
+      COMPANY_NAME_MAX_LENGTH,
+    );
   const selectedCompanyAddress =
-    selectedCompany?.companyAddress ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyAddress : "");
+    limitTextLength(
+      selectedCompany?.companyAddress ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyAddress : ""),
+      COMPANY_ADDRESS_MAX_LENGTH,
+    );
   const selectedCompanyTaxId =
-    selectedCompany?.companyTaxId ??
-    (shouldUseLoadedCompanySnapshot ? loadedCompanyTaxId : "");
+    limitTextLength(
+      selectedCompany?.companyTaxId ??
+        (shouldUseLoadedCompanySnapshot ? loadedCompanyTaxId : ""),
+      COMPANY_TAX_ID_MAX_LENGTH,
+    );
   const selectedCompanyLogoBucketName =
     selectedCompany?.logoBucketName ??
     (shouldUseLoadedCompanySnapshot ? loadedCompanyLogoBucketName : "");
@@ -2056,7 +2248,7 @@ function ProtectedExpenseEditor({
       if (saveResult.didUpload) {
         skipNextAutosaveRef.current = true;
         skipNextDraftWriteRef.current = true;
-        setRows(saveResult.rows);
+        setRows(limitExpenseRowsForExport(saveResult.rows));
       }
 
       return saveResult.expenseCode;
@@ -3247,15 +3439,26 @@ function ProtectedExpenseEditor({
                                 <Textarea
                                   className="min-h-24 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                                   data-auto-resize="true"
+                                  maxLength={EXPENSE_REMARK_MAX_LENGTH}
                                   onInput={(event) => {
                                     resizeTextareaElement(event.currentTarget);
                                   }}
                                   placeholder="What was this expense for?"
                                   value={row.remark}
                                   onChange={(event) =>
-                                    updateRow(row.id, "remark", event.target.value)
+                                    updateRow(
+                                      row.id,
+                                      "remark",
+                                      limitTextLength(
+                                        event.target.value,
+                                        EXPENSE_REMARK_MAX_LENGTH,
+                                      ),
+                                    )
                                   }
                                 />
+                                <span className="block text-right text-xs text-muted-foreground">
+                                  {row.remark.length}/{EXPENSE_REMARK_MAX_LENGTH}
+                                </span>
                               </label>
 
                               <div className="rounded-[1.45rem] border border-white/10 bg-background/55 p-3">
@@ -3473,28 +3676,40 @@ function ProtectedExpenseEditor({
                     <span className="text-sm font-medium text-foreground">Employee name</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                      maxLength={EMPLOYEE_NAME_MAX_LENGTH}
                       placeholder="Who is submitting this form?"
                       type="text"
                       value={employeeName}
                       onChange={(event) => {
                         setPrintError(null);
-                        setEmployeeName(event.target.value);
+                        setEmployeeName(
+                          limitTextLength(event.target.value, EMPLOYEE_NAME_MAX_LENGTH),
+                        );
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {employeeName.length}/{EMPLOYEE_NAME_MAX_LENGTH}
+                    </span>
                   </label>
 
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-foreground">Department</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                      maxLength={DEPARTMENT_MAX_LENGTH}
                       placeholder="Which department is submitting this form?"
                       type="text"
                       value={department}
                       onChange={(event) => {
                         setPrintError(null);
-                        setDepartment(event.target.value);
+                        setDepartment(
+                          limitTextLength(event.target.value, DEPARTMENT_MAX_LENGTH),
+                        );
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {department.length}/{DEPARTMENT_MAX_LENGTH}
+                    </span>
                   </label>
 
                   <label className="block space-y-2">
@@ -3502,6 +3717,7 @@ function ProtectedExpenseEditor({
                     <Textarea
                       className="min-h-28 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                       data-auto-resize="true"
+                      maxLength={EXPORT_NOTE_MAX_LENGTH}
                       onInput={(event) => {
                         resizeTextareaElement(event.currentTarget);
                       }}
@@ -3509,9 +3725,12 @@ function ProtectedExpenseEditor({
                       value={note}
                       onChange={(event) => {
                         setPrintError(null);
-                        setNote(event.target.value);
+                        setNote(limitTextLength(event.target.value, EXPORT_NOTE_MAX_LENGTH));
                       }}
                     />
+                    <span className="block text-right text-xs text-muted-foreground">
+                      {note.length}/{EXPORT_NOTE_MAX_LENGTH}
+                    </span>
                   </label>
                 </CardContent>
               </Card>
@@ -3578,7 +3797,7 @@ function ProtectedExpenseEditor({
                         <Globe2 className="size-4" />
                       </span>
                       <p className="text-sm leading-7 text-foreground">
-                        The PDF fits up to fifteen expense lines per page, keeps the same
+                        The PDF fits up to five expense lines per page, keeps the same
                         layout on continuation pages, and adds up to four receipt photos
                         on each extra page.
                       </p>
@@ -3870,8 +4089,18 @@ function PrintExpenseFormPage({
 }) {
   const trimmedCompanyAddress = companyAddress.trim();
   const hasCompanyAddress = Boolean(trimmedCompanyAddress);
+  const companyNameText = selectedCompanyName || exportCopy.companyPending;
+  const shouldStackAddressHeader = shouldStackCompanyAddressHeader(
+    companyNameText,
+    trimmedCompanyAddress,
+  );
   const headerAddressWidth = getCompanyAddressHeaderWidth(trimmedCompanyAddress);
-  const headerSideWidth = hasCompanyAddress ? headerAddressWidth : totalPages > 1 ? 144 : 0;
+  const headerSideWidth =
+    hasCompanyAddress && !shouldStackAddressHeader
+      ? headerAddressWidth
+      : totalPages > 1
+        ? 144
+        : 0;
 
   return (
     <section
@@ -3911,11 +4140,11 @@ function PrintExpenseFormPage({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black/55">
                   {exportCopy.companyCaption}
                 </p>
-                <h2 className="mt-1 line-clamp-2 font-serif text-[1.14rem] leading-tight">
-                  {selectedCompanyName || exportCopy.companyPending}
+                <h2 className="mt-1 font-serif text-[1.02rem] leading-[1.15] [overflow-wrap:anywhere]">
+                  {companyNameText}
                 </h2>
                 {companyTaxId ? (
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/60">
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/60 [overflow-wrap:anywhere]">
                     {exportCopy.companyTaxId}: {companyTaxId}
                   </p>
                 ) : null}
@@ -3934,7 +4163,7 @@ function PrintExpenseFormPage({
                       {formatFormPageCounter(currentPage, totalPages, exportLanguage)}
                     </p>
                   ) : null}
-                  {hasCompanyAddress ? (
+                  {hasCompanyAddress && !shouldStackAddressHeader ? (
                     <p
                       className={`whitespace-pre-line break-words text-[10px] leading-[1.1rem] text-black/65 ${
                         totalPages > 1 ? "mt-2" : "mt-0.5"
@@ -3946,6 +4175,11 @@ function PrintExpenseFormPage({
                 </div>
               ) : null}
             </div>
+            {hasCompanyAddress && shouldStackAddressHeader ? (
+              <p className="mt-2 whitespace-pre-line break-words text-[9px] leading-[0.9rem] text-black/65">
+                {trimmedCompanyAddress}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -3967,7 +4201,7 @@ function PrintExpenseFormPage({
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/55">
             {exportCopy.note}
           </p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-[1.05rem]">
+          <p className="mt-1 whitespace-pre-line break-words text-[11px] leading-[1.05rem]">
             {note || exportCopy.noteFallback}
           </p>
         </div>
@@ -4013,7 +4247,7 @@ function PrintExpenseFormPage({
                   </p>
                 </div>
                 <div className="border-r border-b border-black/25 px-2 py-1.5">
-                  <p className="line-clamp-2 leading-[1rem] text-black/78">
+                  <p className="whitespace-pre-line break-words leading-[1rem] text-black/78">
                     {row.remark || exportCopy.emptyRemark}
                   </p>
                 </div>
