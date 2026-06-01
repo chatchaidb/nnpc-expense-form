@@ -32,6 +32,7 @@ import {
   updateUserCompany,
   type CompanyRecord,
 } from "@/lib/company-data";
+import { useI18n } from "@/lib/i18n";
 import { type UserAccount } from "@/lib/user-account-data";
 
 type CompanyMessage = {
@@ -87,6 +88,7 @@ function ProtectedCompanySettings({
   logout: () => Promise<void>;
   session: AuthSession;
 }) {
+  const { t } = useI18n();
   const cacheUserKey = session.userEmail;
   const [companyAddressDraft, setCompanyAddressDraft] = useState("");
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
@@ -148,7 +150,7 @@ function ProtectedCompanySettings({
           text:
             error instanceof Error
               ? error.message
-              : "Saved companies could not be loaded from Supabase.",
+              : t("company.loadError"),
         });
       })
       .finally(() => {
@@ -160,7 +162,7 @@ function ProtectedCompanySettings({
     return () => {
       isActive = false;
     };
-  }, [cacheUserKey, logout, session.accessToken]);
+  }, [cacheUserKey, logout, session.accessToken, t]);
 
   const handleCompanyLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = Array.from(event.target.files ?? []);
@@ -179,7 +181,7 @@ function ProtectedCompanySettings({
     } catch {
       setCompanyMessage({
         tone: "error",
-        text: "The selected logo could not be read.",
+        text: t("company.selectedLogoReadError"),
       });
     } finally {
       event.target.value = "";
@@ -222,7 +224,7 @@ function ProtectedCompanySettings({
     } catch {
       setEditCompanyMessage({
         tone: "error",
-        text: "The replacement logo could not be read.",
+        text: t("company.replacementLogoReadError"),
       });
     } finally {
       event.target.value = "";
@@ -239,7 +241,7 @@ function ProtectedCompanySettings({
     if (!companyNameDraft.trim()) {
       setCompanyMessage({
         tone: "error",
-        text: "Company name is required.",
+        text: t("company.nameRequired"),
       });
       return;
     }
@@ -247,7 +249,7 @@ function ProtectedCompanySettings({
     if (!companyLogoFile) {
       setCompanyMessage({
         tone: "error",
-        text: "Upload a company logo before saving.",
+        text: t("company.uploadLogoRequired"),
       });
       return;
     }
@@ -276,7 +278,7 @@ function ProtectedCompanySettings({
       setCompanyLogoDraft("");
       setCompanyMessage({
         tone: "info",
-        text: "Company header saved. It is ready for the export selector.",
+        text: t("company.savedMessage"),
       });
     } catch (error) {
       if (error instanceof Error && error.message === SESSION_EXPIRED_MESSAGE) {
@@ -287,9 +289,9 @@ function ProtectedCompanySettings({
       setCompanyMessage({
         tone: "error",
         text:
-          error instanceof Error
-            ? error.message
-            : "The company could not be saved to Supabase.",
+            error instanceof Error
+              ? error.message
+            : t("company.companyCouldNotSave"),
       });
     } finally {
       setIsSavingCompany(false);
@@ -304,7 +306,7 @@ function ProtectedCompanySettings({
     if (!editCompanyNameDraft.trim()) {
       setEditCompanyMessage({
         tone: "error",
-        text: "Company name is required.",
+        text: t("company.nameRequired"),
       });
       return;
     }
@@ -334,7 +336,7 @@ function ProtectedCompanySettings({
 
       setCompanyMessage({
         tone: "info",
-        text: `${savedCompany.companyName} updated.`,
+        text: t("company.updated", { companyName: savedCompany.companyName }),
       });
       resetEditCompanyState();
     } catch (error) {
@@ -346,9 +348,9 @@ function ProtectedCompanySettings({
       setEditCompanyMessage({
         tone: "error",
         text:
-          error instanceof Error
-            ? error.message
-            : "The company could not be updated in Supabase.",
+            error instanceof Error
+              ? error.message
+            : t("company.companyCouldNotUpdate"),
       });
     } finally {
       setIsUpdatingCompany(false);
@@ -361,7 +363,7 @@ function ProtectedCompanySettings({
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">
-              Company Headers
+              {t("nav.companies")}
             </h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">
               {session.userEmail}
@@ -380,7 +382,7 @@ function ProtectedCompanySettings({
               }}
             >
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </header>
@@ -393,17 +395,16 @@ function ProtectedCompanySettings({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle className="font-serif text-3xl tracking-tight">
-                    Library
+                    {t("company.library")}
                   </CardTitle>
                   <CardDescription className="mt-1 max-w-2xl text-sm leading-7">
-                    Save reusable company names and logos once, then edit or reuse them
-                    from each day sheet before export.
+                    {t("company.libraryDescription")}
                   </CardDescription>
                 </div>
 
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-background/65 px-4 py-2 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
                   <Building2 className="size-4 text-primary" />
-                  {companies.length} saved
+                  {t("company.savedCount", { count: companies.length })}
                 </div>
               </div>
             </CardHeader>
@@ -411,11 +412,11 @@ function ProtectedCompanySettings({
             <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
               {isLoadingCompanies ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-background/60 px-5 py-8 text-sm text-muted-foreground">
-                  Loading saved companies from Supabase...
+                  {t("company.loading")}
                 </div>
               ) : companies.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-background/60 px-5 py-8 text-sm text-muted-foreground">
-                  No companies saved yet.
+                  {t("company.noCompanies")}
                 </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
@@ -442,7 +443,7 @@ function ProtectedCompanySettings({
                           </p>
                           {company.companyTaxId ? (
                             <p className="mt-1 break-all text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                              Tax ID {company.companyTaxId}
+                              {t("common.taxId", { taxId: company.companyTaxId })}
                             </p>
                           ) : null}
                           {company.companyAddress ? (
@@ -451,7 +452,7 @@ function ProtectedCompanySettings({
                             </p>
                           ) : null}
                           <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                            Export ready
+                            {t("company.exportReady")}
                           </p>
                         </div>
                       </div>
@@ -465,7 +466,7 @@ function ProtectedCompanySettings({
                           onClick={() => openEditCompany(company)}
                         >
                           <PencilLine className="size-4" />
-                          Edit
+                          {t("common.edit")}
                         </Button>
                       </div>
                     </article>
@@ -478,19 +479,18 @@ function ProtectedCompanySettings({
           <div className="space-y-4">
             <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
               <CardHeader className="gap-3 border-b border-border/60 px-5 py-5">
-                <BadgeLike label="New header" />
+                <BadgeLike label={t("company.newHeader")} />
                 <CardTitle className="font-serif text-3xl tracking-tight">
-                  Add company
+                  {t("company.addCompany")}
                 </CardTitle>
                 <CardDescription className="text-sm leading-7">
-                  Save the full PDF header once, including the address that prints in the
-                  top-right area.
+                  {t("company.saveFullHeader")}
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-5 px-5 py-5">
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">Company name</span>
+                  <span className="text-sm font-medium text-foreground">{t("common.companyName")}</span>
                   <Input
                     className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
                     maxLength={COMPANY_NAME_MAX_LENGTH}
@@ -509,7 +509,7 @@ function ProtectedCompanySettings({
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">Company Tax ID</span>
+                  <span className="text-sm font-medium text-foreground">{t("common.companyTaxId")}</span>
                   <Input
                     className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
                     maxLength={COMPANY_TAX_ID_MAX_LENGTH}
@@ -528,7 +528,7 @@ function ProtectedCompanySettings({
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">Company address</span>
+                  <span className="text-sm font-medium text-foreground">{t("common.companyAddress")}</span>
                   <Textarea
                     className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                     maxLength={COMPANY_ADDRESS_MAX_LENGTH}
@@ -546,7 +546,7 @@ function ProtectedCompanySettings({
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">Company logo</span>
+                  <span className="text-sm font-medium text-foreground">{t("common.companyLogo")}</span>
                   <Input
                     className="h-12 rounded-2xl border-white/10 bg-background/75 px-4 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
                     type="file"
@@ -564,7 +564,7 @@ function ProtectedCompanySettings({
                   disabled={isSavingCompany}
                 >
                   <Plus className="size-4" />
-                  {isSavingCompany ? "Saving..." : "Save company"}
+                  {isSavingCompany ? t("common.saving") : t("company.saveCompany")}
                 </Button>
 
                 {companyMessage ? (
@@ -584,13 +584,13 @@ function ProtectedCompanySettings({
             <Card className="rounded-[2rem] border-border/60 py-0">
               <CardContent className="px-5 py-5">
                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                  Header preview
+                  {t("company.headerPreview")}
                 </p>
                 <div className="mt-4 flex items-center gap-4">
                   <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/80">
                     {companyLogoDraft ? (
                       <Image
-                        alt={companyNameDraft || "Company logo preview"}
+                        alt={companyNameDraft || t("company.logoPreview")}
                         className="h-full w-full object-contain"
                         height={160}
                         src={companyLogoDraft}
@@ -599,18 +599,18 @@ function ProtectedCompanySettings({
                       />
                     ) : (
                       <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                        Logo
+                        {t("common.logo")}
                       </span>
                     )}
                   </div>
 
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                      {companyNameDraft || "Your saved company name appears here"}
+                      {companyNameDraft || t("company.nameAppears")}
                     </p>
                     {companyTaxIdDraft ? (
                       <p className="mt-1 break-all text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                        Tax ID {companyTaxIdDraft}
+                        {t("common.taxId", { taxId: companyTaxIdDraft })}
                       </p>
                     ) : null}
                     {companyAddressDraft ? (
@@ -619,7 +619,7 @@ function ProtectedCompanySettings({
                       </p>
                     ) : null}
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      This exact header is printed on the export form.
+                      {t("company.headerPrinted")}
                     </p>
                   </div>
                 </div>
@@ -647,20 +647,19 @@ function ProtectedCompanySettings({
           }}
         >
           <DialogHeader className="gap-3 border-b border-border/60 px-6 py-5">
-            <BadgeLike label="Saved header" />
+            <BadgeLike label={t("company.savedHeader")} />
             <DialogTitle className="font-serif text-3xl tracking-tight">
-              Edit company
+              {t("company.editCompany")}
             </DialogTitle>
             <DialogDescription className="max-w-2xl text-sm leading-7">
-              Update the saved company name, tax ID, address, or logo. The changes
-              will be available in the export selector right away.
+              {t("company.updateDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid items-start gap-6 overflow-y-auto px-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
             <div className="space-y-5">
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Company name</span>
+                <span className="text-sm font-medium text-foreground">{t("common.companyName")}</span>
                 <Input
                   className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
                   maxLength={COMPANY_NAME_MAX_LENGTH}
@@ -679,7 +678,7 @@ function ProtectedCompanySettings({
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Company Tax ID</span>
+                <span className="text-sm font-medium text-foreground">{t("common.companyTaxId")}</span>
                 <Input
                   className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
                   maxLength={COMPANY_TAX_ID_MAX_LENGTH}
@@ -698,7 +697,7 @@ function ProtectedCompanySettings({
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Company address</span>
+                <span className="text-sm font-medium text-foreground">{t("common.companyAddress")}</span>
                 <Textarea
                   className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
                   maxLength={COMPANY_ADDRESS_MAX_LENGTH}
@@ -716,7 +715,7 @@ function ProtectedCompanySettings({
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Replace company logo</span>
+                <span className="text-sm font-medium text-foreground">{t("company.replaceLogo")}</span>
                 <Input
                   className="h-12 rounded-2xl border-white/10 bg-background/75 px-4 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
                   type="file"
@@ -736,7 +735,7 @@ function ProtectedCompanySettings({
                     variant="outline"
                     onClick={resetEditCompanyLogo}
                   >
-                    Keep current logo
+                    {t("company.keepCurrentLogo")}
                   </Button>
                 </div>
               ) : null}
@@ -756,13 +755,13 @@ function ProtectedCompanySettings({
 
             <div className="min-w-0 rounded-[1.75rem] border border-white/10 bg-background/60 p-4">
               <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                Updated preview
+                {t("company.updatedPreview")}
               </p>
               <div className="mt-4 flex w-full flex-col items-start text-left">
                 <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/85">
                   {editCompanyLogoDraft ? (
                     <Image
-                      alt={editCompanyNameDraft || "Company logo preview"}
+                      alt={editCompanyNameDraft || t("company.logoPreview")}
                       className="h-full w-full object-contain"
                       height={192}
                       src={editCompanyLogoDraft}
@@ -771,21 +770,21 @@ function ProtectedCompanySettings({
                     />
                   ) : (
                     <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                      Logo
+                      {t("common.logo")}
                     </span>
                   )}
                 </div>
 
                 <p className="mt-4 w-full text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                  {editCompanyNameDraft || "Company name"}
+                  {editCompanyNameDraft || t("common.companyName")}
                 </p>
                 {editCompanyTaxIdDraft ? (
                   <p className="mt-1 w-full break-all text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Tax ID {editCompanyTaxIdDraft}
+                    {t("common.taxId", { taxId: editCompanyTaxIdDraft })}
                   </p>
                 ) : (
                   <p className="mt-1 w-full text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    No tax ID saved
+                    {t("company.noTaxId")}
                   </p>
                 )}
                 {editCompanyAddressDraft ? (
@@ -794,7 +793,7 @@ function ProtectedCompanySettings({
                   </p>
                 ) : null}
                 <p className="mt-3 w-full text-sm leading-6 text-muted-foreground">
-                  This header will show anywhere the saved company is reused for export.
+                  {t("company.headerReused")}
                 </p>
               </div>
             </div>
@@ -808,7 +807,7 @@ function ProtectedCompanySettings({
               variant="outline"
               onClick={resetEditCompanyState}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               className="rounded-full px-5"
@@ -819,7 +818,7 @@ function ProtectedCompanySettings({
               }}
             >
               <PencilLine className="size-4" />
-              {isUpdatingCompany ? "Saving changes..." : "Save changes"}
+              {isUpdatingCompany ? t("common.saving") : t("common.saveChanges")}
             </Button>
           </DialogFooter>
         </DialogContent>

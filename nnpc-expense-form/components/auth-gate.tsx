@@ -32,6 +32,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/lib/i18n";
+import {
+  LOCAL_DEVELOPMENT_ACCESS_TOKEN,
+  LOCAL_DEVELOPMENT_USER_EMAIL,
+  isSupabaseConfigured,
+} from "@/lib/local-mode";
 import { SESSION_EXPIRED_MESSAGE } from "@/lib/supabase-api";
 import {
   getCurrentUserAccount,
@@ -306,6 +312,8 @@ export default function AuthGate({
     session: AuthSession;
   }) => ReactNode;
 }) {
+  const { t } = useI18n();
+  const isLocalMode = !isSupabaseConfigured();
   const [isReady, setIsReady] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -353,6 +361,10 @@ export default function AuthGate({
   };
 
   useEffect(() => {
+    if (isLocalMode) {
+      return;
+    }
+
     let isActive = true;
 
     const restoreSession = async () => {
@@ -382,7 +394,7 @@ export default function AuthGate({
           if (isActive) {
             setAuthMessage({
               tone: "error",
-              text: "The recovery link is invalid or expired. Request a new password reset email.",
+              text: t("auth.recoveryInvalid"),
             });
             setIsReady(true);
           }
@@ -404,7 +416,7 @@ export default function AuthGate({
             setAuthMode("login");
             setAuthMessage({
               tone: "info",
-              text: "Choose a new password to finish resetting your account.",
+              text: t("auth.recoveryPrompt"),
             });
             setIsReady(true);
           }
@@ -418,7 +430,7 @@ export default function AuthGate({
             hashPayload.type === "signup"
               ? {
                   tone: "info",
-                  text: "Email confirmed. Access stays pending until an admin approves your account.",
+                  text: t("auth.emailConfirmed"),
                 }
               : null,
           );
@@ -462,7 +474,7 @@ export default function AuthGate({
           } else {
             clearSession({
               tone: "info",
-              text: SESSION_EXPIRED_COPY,
+              text: t("auth.sessionExpired"),
             });
           }
         }
@@ -485,9 +497,13 @@ export default function AuthGate({
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [isLocalMode, t]);
 
   useEffect(() => {
+    if (isLocalMode) {
+      return;
+    }
+
     if (!session?.expiresAt) {
       return;
     }
@@ -538,9 +554,13 @@ export default function AuthGate({
       isActive = false;
       window.clearTimeout(timeoutId);
     };
-  }, [session]);
+  }, [isLocalMode, session, t]);
 
   useEffect(() => {
+    if (isLocalMode) {
+      return;
+    }
+
     if (!session) {
       setAccount(null);
       setAccountMessage(null);
@@ -576,10 +596,7 @@ export default function AuthGate({
         setAccount(null);
         setAccountMessage({
           tone: "error",
-          text:
-            error instanceof Error
-              ? error.message
-              : "Your account status could not be loaded.",
+          text: error instanceof Error ? error.message : t("auth.accountLoadError"),
         });
       })
       .finally(() => {
@@ -591,9 +608,13 @@ export default function AuthGate({
     return () => {
       isActive = false;
     };
-  }, [accountRefreshNonce, session]);
+  }, [accountRefreshNonce, isLocalMode, session, t]);
 
   useEffect(() => {
+    if (isLocalMode) {
+      return;
+    }
+
     if (!session) {
       return;
     }
@@ -605,7 +626,41 @@ export default function AuthGate({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [session]);
+  }, [isLocalMode, session]);
+
+  if (isLocalMode) {
+    const timestamp = new Date().toISOString();
+    const localSession = {
+      accessToken: LOCAL_DEVELOPMENT_ACCESS_TOKEN,
+      expiresAt: null,
+      refreshToken: "",
+      userEmail: LOCAL_DEVELOPMENT_USER_EMAIL,
+    } satisfies AuthSession;
+    const localAccount = {
+      accessStatus: "approved",
+      approvedAt: timestamp,
+      approvedBy: "local-development",
+      createdAt: timestamp,
+      disabledAt: null,
+      disabledBy: null,
+      displayName: "Local reviewer",
+      email: LOCAL_DEVELOPMENT_USER_EMAIL,
+      role: "central_admin",
+      updatedAt: timestamp,
+      userId: "local-reviewer",
+    } satisfies UserAccount;
+
+    return (
+      <>
+        {children({
+          account: localAccount,
+          logout: async () => undefined,
+          refreshAccount: async () => undefined,
+          session: localSession,
+        })}
+      </>
+    );
+  }
 
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -613,7 +668,7 @@ export default function AuthGate({
     if (!email.trim() || !password.trim()) {
       setAuthMessage({
         tone: "error",
-        text: "Email and password are required.",
+        text: t("auth.emailAndPasswordRequired"),
       });
       return;
     }
@@ -621,7 +676,7 @@ export default function AuthGate({
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       setAuthMessage({
         tone: "error",
-        text: "Missing Supabase URL or publishable key in .env.local.",
+        text: t("auth.missingSupabase"),
       });
       return;
     }
@@ -670,7 +725,7 @@ export default function AuthGate({
           authMode === "signup"
             ? {
                 tone: "info",
-                text: "Account created. Access stays pending until an admin approves you.",
+                text: t("auth.accountCreated"),
               }
             : null,
         );
@@ -678,13 +733,12 @@ export default function AuthGate({
         setAuthMode("login");
         setAuthMessage({
           tone: "info",
-          text:
-            "Account created. If email confirmation is enabled in Supabase, confirm your email first, then log in.",
+          text: t("auth.accountCreatedConfirm"),
         });
       } else {
         setAuthMessage({
           tone: "error",
-          text: "Login succeeded but no session token was returned.",
+          text: t("auth.loginSucceededNoToken"),
         });
       }
 
@@ -692,7 +746,7 @@ export default function AuthGate({
     } catch {
       setAuthMessage({
         tone: "error",
-        text: "The request could not reach Supabase. Check your project URL and network access.",
+        text: t("auth.requestSupabaseError"),
       });
     } finally {
       setIsSubmittingAuth(false);
@@ -703,7 +757,7 @@ export default function AuthGate({
     if (!resetPasswordEmail.trim()) {
       setResetPasswordMessage({
         tone: "error",
-        text: "Enter the email address for the account you want to reset.",
+        text: t("auth.resetEmailRequired"),
       });
       return;
     }
@@ -711,7 +765,7 @@ export default function AuthGate({
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       setResetPasswordMessage({
         tone: "error",
-        text: "Missing Supabase URL or publishable key in .env.local.",
+        text: t("auth.missingSupabase"),
       });
       return;
     }
@@ -747,12 +801,12 @@ export default function AuthGate({
       setResetPasswordMessage(null);
       setAuthMessage({
         tone: "info",
-        text: "Password reset email sent. Open the link from your inbox to choose a new password.",
+        text: t("auth.passwordResetEmailSent"),
       });
     } catch {
       setResetPasswordMessage({
         tone: "error",
-        text: "The reset request could not reach Supabase. Check your project URL and network access.",
+        text: t("auth.resetSupabaseError"),
       });
     } finally {
       setIsSubmittingResetPassword(false);
@@ -765,7 +819,7 @@ export default function AuthGate({
     if (!recoverySession) {
       setAuthMessage({
         tone: "error",
-        text: "The recovery link is missing. Request a new password reset email.",
+        text: t("auth.missingRecoveryLink"),
       });
       return;
     }
@@ -773,7 +827,7 @@ export default function AuthGate({
     if (recoveryPassword.length < 8) {
       setAuthMessage({
         tone: "error",
-        text: "Use at least 8 characters for the new password.",
+        text: t("auth.useEightChars"),
       });
       return;
     }
@@ -781,7 +835,7 @@ export default function AuthGate({
     if (recoveryPassword !== recoveryPasswordConfirmation) {
       setAuthMessage({
         tone: "error",
-        text: "The password confirmation does not match.",
+        text: t("auth.passwordsDoNotMatch"),
       });
       return;
     }
@@ -789,7 +843,7 @@ export default function AuthGate({
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       setAuthMessage({
         tone: "error",
-        text: "Missing Supabase URL or publishable key in .env.local.",
+        text: t("auth.missingSupabase"),
       });
       return;
     }
@@ -827,12 +881,12 @@ export default function AuthGate({
       setAuthMode("login");
       setAuthMessage({
         tone: "info",
-        text: "Password updated. Log in with your new password.",
+        text: t("auth.passwordUpdated"),
       });
     } catch {
       setAuthMessage({
         tone: "error",
-        text: "The password update could not reach Supabase. Request a new recovery email if needed.",
+        text: t("auth.requestSupabaseError"),
       });
     } finally {
       setIsSubmittingRecovery(false);
@@ -864,10 +918,10 @@ export default function AuthGate({
           <Card className="premium-panel w-full max-w-lg rounded-[2rem] border-border/60 py-0">
             <CardContent className="px-6 py-12 text-center sm:px-10">
               <Badge className="rounded-full px-3 py-1" variant="secondary">
-                Initializing
+                {t("auth.initializing")}
               </Badge>
               <p className="mt-5 font-serif text-3xl tracking-tight text-foreground">
-                Loading secure workspace
+                {t("auth.loadingSecureWorkspace")}
               </p>
               <div className="mx-auto mt-6 max-w-sm space-y-3">
                 <Skeleton className="h-4 w-full" />
@@ -875,7 +929,7 @@ export default function AuthGate({
                 <Skeleton className="h-4 w-2/3" />
               </div>
               <p className="mt-5 text-sm leading-7 text-muted-foreground">
-                Preparing the expense console and restoring your access state.
+                {t("auth.preparingWorkspace")}
               </p>
             </CardContent>
           </Card>
@@ -906,48 +960,46 @@ export default function AuthGate({
 
                 <div className="space-y-4">
                   <p className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
-                    Authenticated daily reimbursements
+                    {t("auth.heroEyebrow")}
                   </p>
                   <h1 className="max-w-3xl font-serif text-4xl tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
-                    A cleaner way to move from totals to the full expense breakdown.
+                    {t("auth.heroTitle")}
                   </h1>
                   <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                    Sign in with Supabase, select a date from the dashboard, and manage
-                    all receipts and remarks in a focused single-day editor.
+                    {t("auth.heroDescription")}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <FeatureCard
-                  description="Track dates and totals without clutter, then open detail only when needed."
                   icon={<Wallet className="size-4" />}
-                  title="Concise dashboard"
+                  description={t("auth.featureDashboard.description")}
+                  title={t("auth.featureDashboard.title")}
                 />
                 <FeatureCard
-                  description="Email and password auth is handled directly against your Supabase project."
+                  description={t("auth.featureSecure.description")}
                   icon={<ShieldCheck className="size-4" />}
-                  title="Secure entry"
+                  title={t("auth.featureSecure.title")}
                 />
                 <FeatureCard
-                  description="Attach image receipts per row and sync them to Supabase Storage and Postgres."
+                  description={t("auth.featureReceipt.description")}
                   icon={<Sparkles className="size-4" />}
-                  title="Receipt workflow"
+                  title={t("auth.featureReceipt.title")}
                 />
                 <FeatureCard
-                  description="Dark mode is the default canvas, with a light mode toggle in Settings."
+                  description={t("auth.featureTheme.description")}
                   icon={<LockKeyhole className="size-4" />}
-                  title="Theme control"
+                  title={t("auth.featureTheme.title")}
                 />
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-background/65 px-5 py-5">
                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                  Access workflow
+                  {t("auth.accessWorkflow")}
                 </p>
                 <p className="mt-3 text-sm leading-7 text-foreground">
-                  New signups are created immediately in Supabase Auth, but app access
-                  stays pending until an admin approves the account in user management.
+                  {t("auth.accessWorkflowDescription")}
                 </p>
               </div>
             </div>
@@ -957,7 +1009,7 @@ export default function AuthGate({
             <CardHeader className="gap-5 border-b border-border/60 px-6 py-6">
               {isRecoveryMode ? (
                 <div className="inline-flex w-fit items-center rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-primary">
-                  Password recovery
+                  {t("auth.passwordRecovery")}
                 </div>
               ) : (
                 <div className="flex items-center gap-1 rounded-full border border-white/10 bg-background/70 p-1">
@@ -974,7 +1026,7 @@ export default function AuthGate({
                       setAuthMessage(null);
                     }}
                   >
-                    Log in
+                    {t("auth.login")}
                   </Button>
                   <Button
                     className={cn(
@@ -989,7 +1041,7 @@ export default function AuthGate({
                       setAuthMessage(null);
                     }}
                   >
-                    Sign up
+                    {t("auth.signup")}
                   </Button>
                 </div>
               )}
@@ -997,15 +1049,15 @@ export default function AuthGate({
               <div className="space-y-2">
                 <CardTitle className="font-serif text-3xl tracking-tight">
                   {isRecoveryMode
-                    ? "Set a new password"
+                    ? t("auth.setNewPassword")
                     : authMode === "login"
-                      ? "Access the dashboard"
-                      : "Create your workspace"}
+                      ? t("auth.login")
+                      : t("auth.createWorkspace")}
                 </CardTitle>
                 <CardDescription className="text-sm leading-7">
                   {isRecoveryMode
-                    ? "This recovery link came from Supabase Auth. Save a new password here, then log back in."
-                    : "Supabase email/password authentication only. New accounts enter a pending approval queue before they can use the app."}
+                    ? t("auth.recoveryDescription")
+                    : t("auth.supabaseAuthOnly")}
                 </CardDescription>
               </div>
             </CardHeader>
@@ -1018,15 +1070,15 @@ export default function AuthGate({
                 {isRecoveryMode ? (
                   <>
                     <div className="rounded-2xl border border-white/10 bg-background/65 px-4 py-3 text-sm leading-6 text-muted-foreground">
-                      Resetting access for{" "}
-                      <span className="font-medium text-foreground">
-                        {recoverySession.userEmail || "this account"}
-                      </span>
-                      .
+                      {t("auth.resettingAccessFor", {
+                        email: recoverySession.userEmail || "this account",
+                      })}
                     </div>
 
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">New password</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {t("auth.newPassword")}
+                      </span>
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
@@ -1042,7 +1094,7 @@ export default function AuthGate({
 
                     <label className="block space-y-2">
                       <span className="text-sm font-medium text-foreground">
-                        Confirm new password
+                        {t("auth.confirmNewPassword")}
                       </span>
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -1062,7 +1114,9 @@ export default function AuthGate({
                 ) : (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">Email</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {t("common.email")}
+                      </span>
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
@@ -1077,7 +1131,9 @@ export default function AuthGate({
                     </label>
 
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">Password</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {t("common.password")}
+                      </span>
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
@@ -1106,7 +1162,7 @@ export default function AuthGate({
                             setIsResetPasswordDialogOpen(true);
                           }}
                         >
-                          Reset Password
+                          {t("auth.forgotPassword")}
                         </Button>
                       </div>
                     ) : null}
@@ -1124,7 +1180,7 @@ export default function AuthGate({
                     variant={authMessage.tone === "error" ? "destructive" : "default"}
                   >
                     <AlertTitle>
-                      {authMessage.tone === "error" ? "Authentication issue" : "Next step"}
+                      {authMessage.tone === "error" ? t("auth.authIssue") : t("auth.nextStep")}
                     </AlertTitle>
                     <AlertDescription>{authMessage.text}</AlertDescription>
                   </Alert>
@@ -1137,13 +1193,13 @@ export default function AuthGate({
                 >
                   {isRecoveryMode
                     ? isSubmittingRecovery
-                      ? "Saving new password..."
-                      : "Save new password"
+                      ? t("auth.savingNewPassword")
+                      : t("auth.saveNewPassword")
                     : isSubmittingAuth
-                      ? "Working..."
+                      ? t("auth.working")
                       : authMode === "login"
-                        ? "Log in"
-                        : "Create account"}
+                        ? t("auth.login")
+                        : t("auth.createAccount")}
                   <ArrowRight className="size-4" />
                 </Button>
 
@@ -1159,7 +1215,7 @@ export default function AuthGate({
                       setAuthMessage(null);
                     }}
                   >
-                    Back to login
+                    {t("auth.login")}
                   </Button>
                 ) : null}
               </form>
@@ -1192,11 +1248,10 @@ export default function AuthGate({
           >
             <DialogHeader className="gap-3 border-b border-border/60 px-6 py-5">
               <DialogTitle className="font-serif text-3xl tracking-tight">
-                Reset password
+                {t("auth.resetPassword")}
               </DialogTitle>
               <DialogDescription className="text-sm leading-7">
-                Enter the email for the account. Supabase will send a recovery link so
-                the user can set a new password.
+                {t("auth.resetDescription")}
               </DialogDescription>
             </DialogHeader>
 
@@ -1208,7 +1263,9 @@ export default function AuthGate({
               }}
             >
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Email</span>
+                <span className="text-sm font-medium text-foreground">
+                  {t("common.email")}
+                </span>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -1233,7 +1290,7 @@ export default function AuthGate({
                   variant={resetPasswordMessage.tone === "error" ? "destructive" : "default"}
                 >
                   <AlertTitle>
-                    {resetPasswordMessage.tone === "error" ? "Reset issue" : "Next step"}
+                    {resetPasswordMessage.tone === "error" ? t("auth.resetIssue") : t("auth.nextStep")}
                   </AlertTitle>
                   <AlertDescription>{resetPasswordMessage.text}</AlertDescription>
                 </Alert>
@@ -1250,14 +1307,14 @@ export default function AuthGate({
                     setResetPasswordMessage(null);
                   }}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   className="rounded-full px-5"
                   disabled={isSubmittingResetPassword}
                   type="submit"
                 >
-                  {isSubmittingResetPassword ? "Sending..." : "Send reset link"}
+                  {isSubmittingResetPassword ? t("auth.sending") : t("auth.sendResetLink")}
                 </Button>
               </DialogFooter>
             </form>
@@ -1273,17 +1330,17 @@ export default function AuthGate({
         <AccessStateCard
           description={
             accountMessage?.text ??
-            "Your account status could not be resolved. Try again once the account record is available."
+            t("auth.accountUnavailable.description")
           }
-          title="Account unavailable"
+          title={t("auth.accountUnavailable.title")}
         >
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={() => void refreshAccount()}>
-              Try again
+              {t("common.tryAgain")}
             </Button>
             <Button type="button" variant="outline" onClick={() => void logout()}>
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </AccessStateCard>
@@ -1295,16 +1352,16 @@ export default function AuthGate({
     return (
       <AccessStateShell userEmail={session.userEmail}>
         <AccessStateCard
-          description="Your account is signed in, but access stays blocked until an admin approves it."
-          title="Awaiting approval"
+          description={t("auth.awaitingApproval.description")}
+          title={t("auth.awaitingApproval.title")}
         >
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={() => void refreshAccount()}>
-              Refresh status
+              {t("auth.refreshStatus")}
             </Button>
             <Button type="button" variant="outline" onClick={() => void logout()}>
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </AccessStateCard>
@@ -1316,12 +1373,12 @@ export default function AuthGate({
     return (
       <AccessStateShell userEmail={session.userEmail}>
         <AccessStateCard
-          description="This account has been disabled and cannot use the main system right now."
-          title="Access disabled"
+          description={t("auth.accessDisabled.description")}
+          title={t("auth.accessDisabled.title")}
         >
           <Button type="button" variant="outline" onClick={() => void logout()}>
             <LogOut className="size-4" />
-            Log out
+            {t("common.logout")}
           </Button>
         </AccessStateCard>
       </AccessStateShell>
@@ -1332,16 +1389,16 @@ export default function AuthGate({
     return (
       <AccessStateShell userEmail={session.userEmail}>
         <AccessStateCard
-          description="Your account is approved, but this section is only available to admin roles."
-          title="Access denied"
+          description={t("auth.accessDenied.description")}
+          title={t("auth.accessDenied.title")}
         >
           <div className="flex flex-wrap gap-2">
             <Button asChild type="button" variant="outline">
-              <Link href="/dashboard">Back to dashboard</Link>
+              <Link href="/dashboard">{t("common.backToDashboard")}</Link>
             </Button>
             <Button type="button" variant="outline" onClick={() => void logout()}>
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </AccessStateCard>
@@ -1380,11 +1437,13 @@ function AccessStateCard({
   description: string;
   title: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <Card className="premium-panel w-full max-w-xl rounded-[2rem] border-border/60 py-0">
       <CardContent className="space-y-6 px-6 py-10 sm:px-10">
         <Badge className="rounded-full px-3 py-1" variant="secondary">
-          Account state
+          {t("common.accountState")}
         </Badge>
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground">{title}</h1>

@@ -3,6 +3,11 @@ import {
   SESSION_EXPIRED_MESSAGE,
   supabaseJsonRequest,
 } from "@/lib/supabase-api";
+import {
+  isLocalDevelopmentAccessToken,
+  readLocalStorageJson,
+  writeLocalStorageJson,
+} from "@/lib/local-mode";
 
 export type UserProfile = {
   department: string;
@@ -13,6 +18,8 @@ type ProfileRow = {
   department: string | null;
   full_name: string | null;
 };
+
+const LOCAL_PROFILE_KEY = "nnpc-local-profile";
 
 function normalizeProfileRow(row: ProfileRow | null) {
   if (!row) {
@@ -28,6 +35,13 @@ function normalizeProfileRow(row: ProfileRow | null) {
 export { SESSION_EXPIRED_MESSAGE };
 
 export async function getUserProfile(accessToken: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return readLocalStorageJson<UserProfile | null>(LOCAL_PROFILE_KEY, {
+      department: "Finance",
+      fullName: "Local Reviewer",
+    });
+  }
+
   const userId = deriveUserIdFromAccessToken(accessToken);
 
   if (!userId) {
@@ -51,6 +65,16 @@ export async function upsertUserProfile({
   department: string;
   fullName: string;
 }) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const nextProfile = {
+      department: department.trim(),
+      fullName: fullName.trim(),
+    } satisfies UserProfile;
+
+    writeLocalStorageJson(LOCAL_PROFILE_KEY, nextProfile);
+    return nextProfile;
+  }
+
   const userId = deriveUserIdFromAccessToken(accessToken);
 
   if (!userId) {

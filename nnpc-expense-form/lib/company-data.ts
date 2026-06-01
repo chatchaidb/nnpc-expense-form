@@ -7,6 +7,11 @@ import {
   supabaseJsonRequest,
   uploadStorageObject,
 } from "@/lib/supabase-api";
+import {
+  isLocalDevelopmentAccessToken,
+  readLocalStorageJson,
+  writeLocalStorageJson,
+} from "@/lib/local-mode";
 
 export type CompanyRecord = {
   id: string;
@@ -32,6 +37,37 @@ type CompanyRow = {
   created_at: string;
 };
 
+const LOCAL_COMPANIES_KEY = "nnpc-local-companies";
+
+function readLocalCompanies() {
+  return readLocalStorageJson<CompanyRecord[]>(LOCAL_COMPANIES_KEY, []);
+}
+
+function writeLocalCompanies(companies: CompanyRecord[]) {
+  writeLocalStorageJson(LOCAL_COMPANIES_KEY, companies);
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Logo preview failed."));
+    };
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Logo preview failed."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
 function mapCompanyRow(row: CompanyRow): CompanyRecord {
   const logoBucketName = row.logo_bucket_name;
   const logoObjectPath = row.logo_object_path;
@@ -55,6 +91,10 @@ function mapCompanyRow(row: CompanyRow): CompanyRecord {
 export { SESSION_EXPIRED_MESSAGE };
 
 export async function listUserCompanies(accessToken: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return readLocalCompanies();
+  }
+
   const rows = await supabaseJsonRequest<CompanyRow[]>({
     accessToken,
     path: "user_companies?select=id,company_address,company_name,company_tax_id,logo_data_url,logo_bucket_name,logo_object_path,original_logo_file_name,created_at&order=created_at.desc",
@@ -76,6 +116,25 @@ export async function createUserCompany({
   companyTaxId: string;
   logoFile: File;
 }) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const logoUrl = await readFileAsDataUrl(logoFile);
+    const nextCompany = {
+      companyAddress: companyAddress.trim(),
+      companyName: companyName.trim(),
+      companyTaxId: companyTaxId.trim(),
+      createdAt: new Date().toISOString(),
+      id: `local-company-${Date.now()}`,
+      logoBucketName: null,
+      logoObjectPath: null,
+      logoUrl,
+      originalLogoFileName: logoFile.name,
+    } satisfies CompanyRecord;
+    const nextCompanies = [nextCompany, ...readLocalCompanies()];
+
+    writeLocalCompanies(nextCompanies);
+    return nextCompany;
+  }
+
   const objectPath = createScopedObjectPath({
     accessToken,
     fileName: logoFile.name,
@@ -139,6 +198,28 @@ export async function updateUserCompany({
   >;
   logoFile?: File | null;
 }) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const logoUrl = logoFile ? await readFileAsDataUrl(logoFile) : currentCompany.logoObjectPath ?? "";
+    const currentCompanies = readLocalCompanies();
+    const existingCompany = currentCompanies.find((company) => company.id === companyId);
+    const nextCompany = {
+      companyAddress: companyAddress.trim(),
+      companyName: companyName.trim(),
+      companyTaxId: companyTaxId.trim(),
+      createdAt: existingCompany?.createdAt ?? new Date().toISOString(),
+      id: companyId,
+      logoBucketName: null,
+      logoObjectPath: null,
+      logoUrl: logoFile ? logoUrl : existingCompany?.logoUrl ?? "",
+      originalLogoFileName: logoFile?.name ?? existingCompany?.originalLogoFileName ?? null,
+    } satisfies CompanyRecord;
+
+    writeLocalCompanies(
+      currentCompanies.map((company) => (company.id === companyId ? nextCompany : company)),
+    );
+    return nextCompany;
+  }
+
   let uploadedObjectPath: string | null = null;
 
   try {

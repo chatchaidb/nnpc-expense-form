@@ -20,6 +20,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { LOCALE_LABELS, type Locale, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type ThemeSettingsSheetProps = {
@@ -31,8 +32,10 @@ export function ThemeSettingsSheet({
   userEmail,
   className,
 }: ThemeSettingsSheetProps) {
+  const { locale, setLocale, t } = useI18n();
   const { setTheme, theme } = useTheme();
   const isDarkMode = theme !== "light";
+  const locales = Object.keys(LOCALE_LABELS) as Locale[];
 
   return (
     <Sheet>
@@ -46,21 +49,20 @@ export function ThemeSettingsSheet({
           variant="outline"
         >
           <Settings2 className="size-4" />
-          Settings
+          {t("common.settings")}
         </Button>
       </SheetTrigger>
 
       <SheetContent className="border-border/60 bg-background/95 sm:max-w-md">
         <SheetHeader className="space-y-3 border-b border-border/60 px-6 py-6">
           <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
-            Workspace controls
+            {t("settings.workspaceControls")}
           </Badge>
           <SheetTitle className="font-serif text-2xl tracking-tight">
-            Display settings
+            {t("settings.displaySettings")}
           </SheetTitle>
           <SheetDescription className="max-w-xs text-sm leading-6">
-            Dark mode starts by default. Use the theme switch to move between the
-            black, white, and green brand palette.
+            {t("settings.description")}
           </SheetDescription>
         </SheetHeader>
 
@@ -69,10 +71,9 @@ export function ThemeSettingsSheet({
             <CardHeader className="gap-3 px-5 pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="space-y-1">
-                  <CardTitle className="text-base">Theme mode</CardTitle>
+                  <CardTitle className="text-base">{t("settings.themeMode")}</CardTitle>
                   <CardDescription>
-                    Toggle the interface between a dark executive canvas and a
-                    bright review mode.
+                    {t("settings.themeDescription")}
                   </CardDescription>
                 </div>
                 <Switch
@@ -97,10 +98,10 @@ export function ThemeSettingsSheet({
                 >
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <MoonStar className="size-4" />
-                    Dark
+                    {t("settings.dark")}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Default startup mode
+                    {t("settings.defaultStartupMode")}
                   </p>
                 </button>
 
@@ -116,18 +117,44 @@ export function ThemeSettingsSheet({
                 >
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <SunMedium className="size-4" />
-                    Light
+                    {t("settings.light")}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Clean review mode
+                    {t("settings.cleanReviewMode")}
                   </p>
                 </button>
               </div>
 
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="text-sm font-medium text-foreground">
+                  {t("common.language")}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {t("settings.languageDescription")}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {locales.map((nextLocale) => (
+                    <button
+                      className={cn(
+                        "rounded-2xl border px-3 py-2 text-sm transition",
+                        locale === nextLocale
+                          ? "border-primary/40 bg-primary/12 text-foreground"
+                          : "border-border/70 bg-background/70 text-muted-foreground hover:bg-accent/60",
+                      )}
+                      key={nextLocale}
+                      type="button"
+                      onClick={() => setLocale(nextLocale)}
+                    >
+                      {LOCALE_LABELS[nextLocale]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <Palette className="size-4 text-primary" />
-                  Brand palette
+                  {t("settings.brandPalette")}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="size-6 rounded-full border border-white/10 bg-black" />
@@ -140,14 +167,14 @@ export function ThemeSettingsSheet({
 
           <Card className="rounded-3xl border-border/70 py-0 shadow-none">
             <CardHeader className="gap-2 px-5 pt-5">
-              <CardTitle className="text-base">Session</CardTitle>
+              <CardTitle className="text-base">{t("settings.session")}</CardTitle>
               <CardDescription>
-                This prototype stores reports and assets in Supabase.
+                {t("settings.sessionDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="px-5 pb-5">
               <p className="text-sm text-muted-foreground">
-                {userEmail ?? "Sign in to load a user session."}
+                {userEmail ?? t("settings.signInSession")}
               </p>
             </CardContent>
           </Card>

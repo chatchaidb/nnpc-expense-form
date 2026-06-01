@@ -1,4 +1,11 @@
 import { getBangkokDateInputValue } from "@/lib/date";
+import { hasRowContent } from "@/lib/expense-data";
+import {
+  LOCAL_DEVELOPMENT_USER_EMAIL,
+  isLocalDevelopmentAccessToken,
+  readLocalStorageJson,
+} from "@/lib/local-mode";
+import type { ExpenseDayDocument } from "@/lib/report-data";
 import { supabaseRpcRequest } from "@/lib/supabase-api";
 
 export type AdminExpenseDay = {
@@ -87,6 +94,8 @@ type AdminExpenseUserDetailPayload = {
   } | null;
 };
 
+const LOCAL_EXPENSE_DAYS_KEY = "nnpc-local-expense-days";
+
 function toNumber(value: number | string | undefined | null) {
   const numericValue = Number(value);
 
@@ -145,6 +154,61 @@ export function formatAdminPeriodLabel(period: string) {
 
 export async function getAdminExpenseDashboard(accessToken: string, period: string) {
   const normalizedPeriod = normalizeAdminPeriod(period);
+
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const localDays = Object.values(
+      readLocalStorageJson<Record<string, ExpenseDayDocument>>(
+        LOCAL_EXPENSE_DAYS_KEY,
+        {},
+      ),
+    );
+    const selectedYear = Number(normalizedPeriod.slice(0, 4));
+    const monthlyDays = localDays.filter((day) =>
+      day.reportId.replace("local-report-", "").startsWith(normalizedPeriod),
+    );
+    const yearlyDays = localDays.filter((day) =>
+      day.reportId.replace("local-report-", "").startsWith(String(selectedYear)),
+    );
+    const monthlyExpense = monthlyDays.reduce(
+      (total, day) =>
+        total +
+        day.rows
+          .filter(hasRowContent)
+          .reduce((rowTotal, row) => rowTotal + Number(row.amount || 0), 0),
+      0,
+    );
+    const yearlyExpense = yearlyDays.reduce(
+      (total, day) =>
+        total +
+        day.rows
+          .filter(hasRowContent)
+          .reduce((rowTotal, row) => rowTotal + Number(row.amount || 0), 0),
+      0,
+    );
+
+    return {
+      periodLabel: formatAdminPeriodLabel(normalizedPeriod),
+      selectedMonth: Number(normalizedPeriod.slice(5, 7)),
+      selectedPeriod: normalizedPeriod,
+      selectedYear,
+      totals: {
+        monthlyExpense,
+        usersWithMonthlyExpenses: monthlyDays.length > 0 ? 1 : 0,
+        yearlyExpense,
+      },
+      users: [
+        {
+          displayName: "Local reviewer",
+          email: LOCAL_DEVELOPMENT_USER_EMAIL,
+          monthDaysWithExpenses: monthlyDays.length,
+          monthlyExpense,
+          userId: "local-reviewer",
+          yearlyExpense,
+        },
+      ],
+    } satisfies AdminExpenseDashboard;
+  }
+
   const payload = await supabaseRpcRequest<AdminExpenseDashboardPayload>({
     accessToken,
     args: {
@@ -179,6 +243,64 @@ export async function getAdminExpenseUserDetail(
   userId: string,
 ) {
   const normalizedPeriod = normalizeAdminPeriod(period);
+
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const selectedYear = Number(normalizedPeriod.slice(0, 4));
+    const localDays = Object.values(
+      readLocalStorageJson<Record<string, ExpenseDayDocument>>(
+        LOCAL_EXPENSE_DAYS_KEY,
+        {},
+      ),
+    );
+    const monthlyDays = localDays.filter((day) =>
+      day.reportId.replace("local-report-", "").startsWith(normalizedPeriod),
+    );
+    const yearlyDays = localDays.filter((day) =>
+      day.reportId.replace("local-report-", "").startsWith(String(selectedYear)),
+    );
+    const monthlyExpense = monthlyDays.reduce(
+      (total, day) =>
+        total +
+        day.rows
+          .filter(hasRowContent)
+          .reduce((rowTotal, row) => rowTotal + Number(row.amount || 0), 0),
+      0,
+    );
+    const yearlyExpense = yearlyDays.reduce(
+      (total, day) =>
+        total +
+        day.rows
+          .filter(hasRowContent)
+          .reduce((rowTotal, row) => rowTotal + Number(row.amount || 0), 0),
+      0,
+    );
+
+    return {
+      periodLabel: formatAdminPeriodLabel(normalizedPeriod),
+      selectedMonth: Number(normalizedPeriod.slice(5, 7)),
+      selectedPeriod: normalizedPeriod,
+      selectedYear,
+      user: {
+        detailRows: monthlyDays.map((day) => ({
+          companyName: day.companyName || "Local company",
+          date: day.reportId.replace("local-report-", ""),
+          employeeName: day.employeeName || "Local reviewer",
+          expenseCode: day.expenseCode,
+          reportId: day.reportId,
+          totalAmount: day.rows
+            .filter(hasRowContent)
+            .reduce((total, row) => total + Number(row.amount || 0), 0),
+        })),
+        displayName: "Local reviewer",
+        email: LOCAL_DEVELOPMENT_USER_EMAIL,
+        monthDaysWithExpenses: monthlyDays.length,
+        monthlyExpense,
+        userId,
+        yearlyExpense,
+      },
+    } satisfies AdminExpenseUserDetailResponse;
+  }
+
   const payload = await supabaseRpcRequest<AdminExpenseUserDetailPayload>({
     accessToken,
     args: {

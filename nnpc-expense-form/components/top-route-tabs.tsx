@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { type AccountRole } from "@/lib/user-account-data";
 import { cn } from "@/lib/utils";
 
@@ -27,60 +28,61 @@ export function TopRouteTabs({
   activeSection: RouteSection;
   accountRole?: AccountRole | null;
 }) {
+  const { t } = useI18n();
   const showAdminRoutes = accountRole === "admin" || accountRole === "central_admin";
   const tabGroups: Array<{
-    label: string;
+    labelKey: TranslationKey;
     tabs: Array<{
       href: string;
       icon: ComponentType<{ className?: string }>;
       key: RouteSection;
-      label: string;
+      labelKey: TranslationKey;
     }>;
   }> = [
     {
-      label: "Workspace",
+      labelKey: "nav.workspace",
       tabs: [
         {
           href: "/dashboard",
           icon: FileText,
           key: "expenses",
-          label: "Expenses",
+          labelKey: "nav.expenses",
         },
       ],
     },
     {
-      label: "Setup",
+      labelKey: "nav.setup",
       tabs: [
         {
           href: "/companies",
           icon: Building2,
           key: "companies",
-          label: "Company Headers",
+          labelKey: "nav.companies",
         },
         {
           href: "/profile",
           icon: UserRound,
           key: "profile",
-          label: "Profile",
+          labelKey: "nav.profile",
         },
       ],
     },
     ...(showAdminRoutes
       ? [
           {
-            label: "Admin",
+            labelKey: "nav.admin" as const,
             tabs: [
               {
                 href: "/admin/expenses",
                 icon: LayoutPanelTop,
                 key: "expense-insight" as const,
-                label: "Expenses Insight",
+                labelKey: "nav.expenseInsight" as const,
               },
               {
                 href: "/admin/users",
                 icon: ShieldCheck,
                 key: "user-management" as const,
-                label: "User Management",
+                labelKey: "nav.userManagement" as const,
               },
             ],
           },
@@ -89,18 +91,18 @@ export function TopRouteTabs({
   ];
 
   return (
-    <nav aria-label="Primary" className="mt-6 overflow-x-auto">
+    <nav aria-label={t("nav.primary")} className="mt-6 overflow-x-auto">
       <div className="flex min-w-max flex-col gap-3 lg:min-w-0 lg:flex-row lg:flex-wrap lg:items-end">
         {tabGroups.map((group) => (
-          <div className="min-w-max" key={group.label}>
+          <div className="min-w-max" key={group.labelKey}>
             <p className="mb-2 px-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              {group.label === "Setup" ? (
+              {group.labelKey === "nav.setup" ? (
                 <span className="inline-flex items-center gap-1.5">
                   <BadgeCheck className="size-3.5 text-primary" />
-                  {group.label}
+                  {t(group.labelKey)}
                 </span>
               ) : (
-                group.label
+                t(group.labelKey)
               )}
             </p>
             <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-muted/20 p-1.5 backdrop-blur-sm">
@@ -120,7 +122,7 @@ export function TopRouteTabs({
                     key={tab.key}
                   >
                     <Icon className="size-4" />
-                    <span className="whitespace-nowrap">{tab.label}</span>
+                    <span className="whitespace-nowrap">{t(tab.labelKey)}</span>
                   </Link>
                 );
               })}

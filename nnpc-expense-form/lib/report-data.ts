@@ -15,6 +15,11 @@ import {
   type ExportLanguage,
   type ReceiptDraft,
 } from "@/lib/expense-data";
+import {
+  isLocalDevelopmentAccessToken,
+  readLocalStorageJson,
+  writeLocalStorageJson,
+} from "@/lib/local-mode";
 
 type ExpenseSummaryRow = {
   expense_date: string;
@@ -73,6 +78,75 @@ export type ExpenseDayDocument = {
   note: string;
   rows: ExpenseRow[];
 };
+
+const LOCAL_EXPENSE_DAYS_KEY = "nnpc-local-expense-days";
+
+function readLocalExpenseDays() {
+  return readLocalStorageJson<Record<string, ExpenseDayDocument>>(
+    LOCAL_EXPENSE_DAYS_KEY,
+    {},
+  );
+}
+
+function writeLocalExpenseDays(days: Record<string, ExpenseDayDocument>) {
+  writeLocalStorageJson(LOCAL_EXPENSE_DAYS_KEY, days);
+}
+
+function readReceiptFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Receipt preview failed."));
+    };
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Receipt preview failed."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function materializeLocalReceipts(rows: ExpenseRow[]) {
+  let didUpload = false;
+
+  const nextRows = await Promise.all(
+    rows.map(async (row) => {
+      const receipts = await Promise.all(
+        row.receipts.map(async (receipt) => {
+          if (!receipt.file) {
+            return receipt;
+          }
+
+          didUpload = true;
+          return {
+            ...receipt,
+            bucketName: "local-storage",
+            file: undefined,
+            fileSizeBytes: receipt.file.size,
+            mimeType: receipt.file.type || receipt.mimeType || null,
+            objectPath: `local-receipts/${receipt.id}`,
+            previewUrl: await readReceiptFileAsDataUrl(receipt.file),
+            sizeLabel: formatFileSize(receipt.file.size),
+          } satisfies ReceiptDraft;
+        }),
+      );
+
+      return {
+        ...row,
+        receipts,
+      };
+    }),
+  );
+
+  return { didUpload, rows: nextRows };
+}
 
 function buildReceiptDraftFromRow(row: ReceiptRow): ReceiptDraft {
   return {
@@ -168,6 +242,21 @@ async function materializeReceipts({
 }
 
 export async function listExpenseSummaries(accessToken: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return Object.values(readLocalExpenseDays())
+      .map(
+        (document) =>
+          ({
+            date: document.reportId.replace("local-report-", ""),
+            expenseCode: document.expenseCode,
+            totalAmount: document.rows
+              .filter(hasRowContent)
+              .reduce((total, row) => total + Number(row.amount || 0), 0),
+          }) satisfies ExpenseSummary,
+      )
+      .sort((left, right) => right.date.localeCompare(left.date));
+  }
+
   const rows = await supabaseJsonRequest<ExpenseSummaryRow[]>({
     accessToken,
     path: "expense_reports?select=expense_date,expense_code,total_amount_thb&order=expense_date.desc",
@@ -184,6 +273,10 @@ export async function listExpenseSummaries(accessToken: string) {
 }
 
 export async function getExpenseDay(accessToken: string, expenseDate: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return readLocalExpenseDays()[expenseDate] ?? null;
+  }
+
   const rows = await supabaseJsonRequest<ExpenseReportRow[]>({
     accessToken,
     path: `expense_reports?select=id,expense_code,company_address,company_id,company_name,company_tax_id,company_logo_data_url,company_logo_bucket_name,company_logo_object_path,export_language,department,employee_name,note,expense_items(id,expense_type_label,amount_thb,remark,line_number,expense_receipts(id,bucket_name,object_path,original_file_name,mime_type,file_size_bytes))&expense_date=eq.${expenseDate}&limit=1`,
@@ -254,6 +347,40 @@ export async function upsertExpenseDay({
   note: string;
   rows: ExpenseRow[];
 }) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    const { didUpload, rows: materializedRows } = await materializeLocalReceipts(rows);
+    const expenseCode = `LOCAL-${expenseDate.replaceAll("-", "")}`;
+    const nextDocument = {
+      companyAddress,
+      companyId,
+      companyLogoBucketName,
+      companyLogoObjectPath,
+      companyLogoUrl: "",
+      companyName,
+      companyTaxId,
+      department,
+      employeeName,
+      expenseCode,
+      exportLanguage,
+      note,
+      reportId: `local-report-${expenseDate}`,
+      rows: materializedRows,
+    } satisfies ExpenseDayDocument;
+    const nextDays = {
+      ...readLocalExpenseDays(),
+      [expenseDate]: nextDocument,
+    };
+
+    writeLocalExpenseDays(nextDays);
+
+    return {
+      didUpload,
+      expenseCode,
+      reportId: nextDocument.reportId,
+      rows: materializedRows,
+    };
+  }
+
   const { didUpload, rows: materializedRows } = await materializeReceipts({
     accessToken,
     expenseDate,

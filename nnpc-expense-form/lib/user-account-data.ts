@@ -4,6 +4,10 @@ import {
   supabaseJsonRequest,
   supabaseRpcRequest,
 } from "@/lib/supabase-api";
+import {
+  LOCAL_DEVELOPMENT_USER_EMAIL,
+  isLocalDevelopmentAccessToken,
+} from "@/lib/local-mode";
 
 export type AccessStatus = "approved" | "disabled" | "pending";
 export type AccountRole = "admin" | "central_admin" | "user";
@@ -79,6 +83,24 @@ type AdminUserStorageCleanupPayload = {
 const USER_ACCOUNT_SELECT =
   "user_id,email,display_name,role,access_status,created_at,updated_at,approved_at,approved_by,disabled_at,disabled_by";
 const STORAGE_DELETE_BATCH_SIZE = 100;
+
+function buildLocalUserAccount() {
+  const timestamp = new Date().toISOString();
+
+  return {
+    accessStatus: "approved",
+    approvedAt: timestamp,
+    approvedBy: "local-development",
+    createdAt: timestamp,
+    disabledAt: null,
+    disabledBy: null,
+    displayName: "Local reviewer",
+    email: LOCAL_DEVELOPMENT_USER_EMAIL,
+    role: "central_admin",
+    updatedAt: timestamp,
+    userId: "local-reviewer",
+  } satisfies UserAccount;
+}
 
 function toNumber(value: number | string | undefined | null) {
   const numericValue = Number(value);
@@ -185,6 +207,10 @@ async function fetchOwnUserAccount(accessToken: string) {
 }
 
 export async function getCurrentUserAccount(accessToken: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return buildLocalUserAccount();
+  }
+
   const backoffDelaysMs = [0, 250, 800];
 
   for (const delayMs of backoffDelaysMs) {
@@ -205,6 +231,18 @@ export async function getCurrentUserAccount(accessToken: string) {
 }
 
 export async function getAdminUserManagement(accessToken: string) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return {
+      totals: {
+        approvedUsers: 1,
+        disabledUsers: 0,
+        elevatedUsers: 1,
+        pendingUsers: 0,
+      },
+      users: [buildLocalUserAccount()],
+    } satisfies AdminUserManagementData;
+  }
+
   const payload = await supabaseRpcRequest<AdminUserManagementPayload>({
     accessToken,
     args: {},
@@ -233,6 +271,13 @@ export async function adminManageUserAccount({
   role?: AssignableRole;
   targetUserId: string;
 }) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return {
+      action,
+      userId: targetUserId,
+    };
+  }
+
   return supabaseRpcRequest<{
     action?: string;
     userId?: string;
@@ -251,6 +296,10 @@ export async function deleteAdminUserStorageAssets(
   accessToken: string,
   targetUserId: string,
 ) {
+  if (isLocalDevelopmentAccessToken(accessToken)) {
+    return;
+  }
+
   const payload = await supabaseRpcRequest<AdminUserStorageCleanupPayload>({
     accessToken,
     args: {

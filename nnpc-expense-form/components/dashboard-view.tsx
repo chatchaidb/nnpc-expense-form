@@ -18,6 +18,7 @@ import {
   getBangkokDateInputValue,
 } from "@/lib/date";
 import { formatCurrency, type ExpenseSummary } from "@/lib/expense-data";
+import { useI18n } from "@/lib/i18n";
 import { listExpenseSummaries } from "@/lib/report-data";
 import { type UserAccount } from "@/lib/user-account-data";
 
@@ -40,6 +41,7 @@ function ProtectedDashboard({
   logout: () => Promise<void>;
   session: AuthSession;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const cacheUserKey = session.userEmail;
   const [selectedDate, setSelectedDate] = useState(() => getBangkokDateInputValue());
@@ -89,7 +91,7 @@ function ProtectedDashboard({
         setSummaryError(
           error instanceof Error
             ? error.message
-            : "Expense summaries could not be loaded from Supabase.",
+            : t("dashboard.errorLoadSummaries"),
         );
       })
       .finally(() => {
@@ -101,7 +103,7 @@ function ProtectedDashboard({
     return () => {
       isActive = false;
     };
-  }, [cacheUserKey, logout, session.accessToken]);
+  }, [cacheUserKey, logout, session.accessToken, t]);
 
   return (
     <div className="page-shell min-h-screen">
@@ -109,7 +111,7 @@ function ProtectedDashboard({
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">
-              Expenses
+              {t("nav.expenses")}
             </h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">
               {session.userEmail}
@@ -128,7 +130,7 @@ function ProtectedDashboard({
               }}
             >
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </header>
@@ -152,7 +154,7 @@ function ProtectedDashboard({
                   router.push(`/expense?date=${encodeURIComponent(selectedDate)}`)
                 }
               >
-                {matchingSummary ? "Open" : "Create"}
+                {matchingSummary ? t("common.open") : t("common.create")}
               </Button>
             </div>
           </CardContent>
@@ -161,9 +163,9 @@ function ProtectedDashboard({
         <Card className="mt-4 rounded-[1.75rem] border-border/60 py-0 shadow-none">
           <CardContent className="px-0 py-0">
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-4 border-b border-border/60 px-4 py-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground sm:px-5">
-              <span>Date</span>
-              <span>Reference</span>
-              <span>Total</span>
+              <span>{t("common.date")}</span>
+              <span>{t("common.reference")}</span>
+              <span>{t("common.total")}</span>
             </div>
 
             {summaryError ? (
@@ -172,11 +174,11 @@ function ProtectedDashboard({
               </div>
             ) : isLoadingSummaries ? (
               <div className="px-4 py-8 text-sm text-muted-foreground sm:px-5">
-                Loading reports from Supabase...
+                {t("dashboard.loadingReports")}
               </div>
             ) : summaries.length === 0 ? (
               <div className="px-4 py-10 text-sm text-muted-foreground sm:px-5">
-                No saved dates.
+                {t("dashboard.noSavedDates")}
               </div>
             ) : (
               <div>
