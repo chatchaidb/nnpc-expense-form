@@ -1,5 +1,5 @@
+import { apiRequest } from "@/lib/api-client";
 import { getBangkokDateInputValue } from "@/lib/date";
-import { supabaseRpcRequest } from "@/lib/supabase-api";
 
 export type AdminExpenseDay = {
   companyName: string;
@@ -44,66 +44,6 @@ export type AdminExpenseUserDetailResponse = {
   user: AdminExpenseUserDetail | null;
 };
 
-type SummaryUserPayload = {
-  displayName?: string;
-  email?: string;
-  monthDaysWithExpenses?: number | string;
-  monthlyExpense?: number | string;
-  userId?: string;
-  yearlyExpense?: number | string;
-};
-
-type AdminExpenseDashboardPayload = {
-  selectedMonth?: number | string;
-  selectedPeriod?: string;
-  selectedYear?: number | string;
-  totals?: {
-    monthlyExpense?: number | string;
-    usersWithMonthlyExpenses?: number | string;
-    yearlyExpense?: number | string;
-  } | null;
-  users?: SummaryUserPayload[] | null;
-};
-
-type AdminExpenseUserDetailPayload = {
-  selectedMonth?: number | string;
-  selectedPeriod?: string;
-  selectedYear?: number | string;
-  user?: {
-    detailRows?: Array<{
-      companyName?: string;
-      date?: string;
-      employeeName?: string;
-      expenseCode?: string;
-      reportId?: string;
-      totalAmount?: number | string;
-    }> | null;
-    displayName?: string;
-    email?: string;
-    monthDaysWithExpenses?: number | string;
-    monthlyExpense?: number | string;
-    userId?: string;
-    yearlyExpense?: number | string;
-  } | null;
-};
-
-function toNumber(value: number | string | undefined | null) {
-  const numericValue = Number(value);
-
-  return Number.isFinite(numericValue) ? numericValue : 0;
-}
-
-function normalizeExpenseUserSummary(user: SummaryUserPayload, userIndex = 0) {
-  return {
-    displayName: user.displayName?.trim() || "Expense owner",
-    email: user.email?.trim() || "No email",
-    monthDaysWithExpenses: toNumber(user.monthDaysWithExpenses),
-    monthlyExpense: toNumber(user.monthlyExpense),
-    userId: user.userId?.trim() || `user-${userIndex + 1}`,
-    yearlyExpense: toNumber(user.yearlyExpense),
-  } satisfies AdminExpenseUserSummary;
-}
-
 export function getDefaultAdminPeriod() {
   return getBangkokDateInputValue().slice(0, 7);
 }
@@ -143,76 +83,22 @@ export function formatAdminPeriodLabel(period: string) {
   }).format(parsedDate);
 }
 
-export async function getAdminExpenseDashboard(accessToken: string, period: string) {
-  const normalizedPeriod = normalizeAdminPeriod(period);
-  const payload = await supabaseRpcRequest<AdminExpenseDashboardPayload>({
-    accessToken,
-    args: {
-      p_period: normalizedPeriod,
-    },
-    fn: "get_admin_expense_dashboard",
-  });
+export async function getAdminExpenseDashboard(_accessToken: string, period: string) {
+  const selectedPeriod = normalizeAdminPeriod(period);
 
-  const selectedPeriod = normalizeAdminPeriod(payload.selectedPeriod ?? normalizedPeriod);
-  const selectedYear = toNumber(payload.selectedYear) || Number(selectedPeriod.slice(0, 4));
-  const selectedMonth = toNumber(payload.selectedMonth) || Number(selectedPeriod.slice(5, 7));
-
-  return {
-    periodLabel: formatAdminPeriodLabel(selectedPeriod),
-    selectedMonth,
-    selectedPeriod,
-    selectedYear,
-    totals: {
-      monthlyExpense: toNumber(payload.totals?.monthlyExpense),
-      usersWithMonthlyExpenses: toNumber(payload.totals?.usersWithMonthlyExpenses),
-      yearlyExpense: toNumber(payload.totals?.yearlyExpense),
-    },
-    users: (payload.users ?? []).map((user, userIndex) =>
-      normalizeExpenseUserSummary(user, userIndex),
-    ),
-  } satisfies AdminExpenseDashboard;
+  return apiRequest<AdminExpenseDashboard>(
+    `/api/admin/expenses?period=${encodeURIComponent(selectedPeriod)}`,
+  );
 }
 
 export async function getAdminExpenseUserDetail(
-  accessToken: string,
+  _accessToken: string,
   period: string,
   userId: string,
 ) {
-  const normalizedPeriod = normalizeAdminPeriod(period);
-  const payload = await supabaseRpcRequest<AdminExpenseUserDetailPayload>({
-    accessToken,
-    args: {
-      p_period: normalizedPeriod,
-      p_user_id: userId,
-    },
-    fn: "get_admin_expense_user_detail",
-  });
+  const selectedPeriod = normalizeAdminPeriod(period);
 
-  const selectedPeriod = normalizeAdminPeriod(payload.selectedPeriod ?? normalizedPeriod);
-  const selectedYear = toNumber(payload.selectedYear) || Number(selectedPeriod.slice(0, 4));
-  const selectedMonth = toNumber(payload.selectedMonth) || Number(selectedPeriod.slice(5, 7));
-  const userPayload = payload.user ?? null;
-  const selectedUser = userPayload
-    ? {
-        ...normalizeExpenseUserSummary(userPayload),
-        detailRows: (userPayload.detailRows ?? []).map((detailRow, detailIndex) => ({
-          companyName: detailRow.companyName?.trim() || "No company",
-          date: detailRow.date?.trim() || "",
-          employeeName: detailRow.employeeName?.trim() || "Expense owner",
-          expenseCode: detailRow.expenseCode?.trim() || "EXP",
-          reportId:
-            detailRow.reportId?.trim() ||
-            `detail-${userPayload.userId?.trim() || userId}-${detailIndex + 1}`,
-          totalAmount: toNumber(detailRow.totalAmount),
-        })),
-      }
-    : null;
-
-  return {
-    periodLabel: formatAdminPeriodLabel(selectedPeriod),
-    selectedMonth,
-    selectedPeriod,
-    selectedYear,
-    user: selectedUser,
-  } satisfies AdminExpenseUserDetailResponse;
+  return apiRequest<AdminExpenseUserDetailResponse>(
+    `/api/admin/expenses/${encodeURIComponent(userId)}?period=${encodeURIComponent(selectedPeriod)}`,
+  );
 }

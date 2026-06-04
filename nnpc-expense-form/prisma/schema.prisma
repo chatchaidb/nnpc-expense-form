@@ -1,7 +1,3 @@
-// Prisma schema prepared for Microsoft SQL Server.
-// SQL Server connection URLs use the JDBC-style format:
-// sqlserver://host:1433;database=nnpc_expense;schema=dbo;encrypt=true;trustServerCertificate=true
-
 generator client {
   provider = "prisma-client"
   output   = "../lib/generated/prisma"
@@ -11,14 +7,77 @@ datasource db {
   provider = "sqlserver"
 }
 
+model AuthUser {
+  id            String        @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name          String        @db.NVarChar(255)
+  email         String        @unique @db.NVarChar(320)
+  emailVerified Boolean       @default(false)
+  image         String?       @db.NVarChar(2048)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  accounts      AuthAccount[]
+  sessions      AuthSession[]
+  userAccount   UserAccount?
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  expiresAt DateTime
+  token     String   @unique @db.NVarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  ipAddress String?  @db.NVarChar(64)
+  userAgent String?  @db.NVarChar(1024)
+  userId    String   @db.UniqueIdentifier
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  accountId             String    @db.NVarChar(255)
+  providerId            String    @db.NVarChar(255)
+  userId                String    @db.UniqueIdentifier
+  accessToken           String?   @db.NVarChar(Max)
+  refreshToken          String?   @db.NVarChar(Max)
+  idToken               String?   @db.NVarChar(Max)
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?   @db.NVarChar(1024)
+  password              String?   @db.NVarChar(1024)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@unique([providerId, accountId], map: "account_provider_account_idx")
+  @@map("account")
+}
+
+model AuthVerification {
+  id         String   @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  identifier String   @db.NVarChar(255)
+  value      String   @db.NVarChar(Max)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
 model Profile {
   id           String      @id @map("id") @db.UniqueIdentifier
   fullName     String?     @map("full_name") @db.NVarChar(255)
   employeeCode String?     @map("employee_code") @db.NVarChar(64)
   department   String?     @db.NVarChar(255)
   costCenter   String?     @map("cost_center") @db.NVarChar(128)
-  createdAt    DateTime    @default(now()) @map("created_at") @db.DateTime2
-  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime2
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at")
   userAccount  UserAccount @relation(fields: [id], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("profiles")
@@ -30,40 +89,41 @@ model UserAccount {
   displayName   String          @map("display_name") @db.NVarChar(255)
   role          String          @default("user") @db.NVarChar(32)
   accessStatus  String          @default("pending") @map("access_status") @db.NVarChar(32)
-  approvedAt    DateTime?       @map("approved_at") @db.DateTime2
+  approvedAt    DateTime?       @map("approved_at")
   approvedById  String?         @map("approved_by") @db.UniqueIdentifier
-  disabledAt    DateTime?       @map("disabled_at") @db.DateTime2
+  disabledAt    DateTime?       @map("disabled_at")
   disabledById  String?         @map("disabled_by") @db.UniqueIdentifier
-  createdAt     DateTime        @default(now()) @map("created_at") @db.DateTime2
-  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.DateTime2
-  profile       Profile?
-  companies     UserCompany[]
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at")
   reports       ExpenseReport[]
+  profile       Profile?
+  authUser      AuthUser?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   approvedBy    UserAccount?    @relation("UserAccountApprovedBy", fields: [approvedById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
   approvedUsers UserAccount[]   @relation("UserAccountApprovedBy")
   disabledBy    UserAccount?    @relation("UserAccountDisabledBy", fields: [disabledById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
   disabledUsers UserAccount[]   @relation("UserAccountDisabledBy")
+  companies     UserCompany[]
 
-  @@index([role], map: "user_accounts_role_idx")
-  @@index([accessStatus], map: "user_accounts_access_status_idx")
-  @@index([accessStatus, role], map: "user_accounts_access_status_role_idx")
+  @@index([role])
+  @@index([accessStatus])
+  @@index([accessStatus, role])
   @@map("user_accounts")
 }
 
 model UserCompany {
   id                   String          @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
   userId               String          @map("user_id") @db.UniqueIdentifier
-  companyAddress       String?         @map("company_address") @db.NVarChar(1000)
+  companyAddress       String?         @map("company_address")
   companyName          String          @map("company_name") @db.NVarChar(255)
   companyTaxId         String?         @map("company_tax_id") @db.NVarChar(64)
   logoDataUrl          String?         @map("logo_data_url") @db.NText
   logoBucketName       String?         @default("company-assets") @map("logo_bucket_name") @db.NVarChar(128)
   logoObjectPath       String?         @map("logo_object_path") @db.NVarChar(1024)
   originalLogoFileName String?         @map("original_logo_file_name") @db.NVarChar(255)
-  createdAt            DateTime        @default(now()) @map("created_at") @db.DateTime2
-  updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at") @db.DateTime2
-  userAccount          UserAccount     @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at")
   reports              ExpenseReport[]
+  userAccount          UserAccount     @relation(fields: [userId], references: [userId], onUpdate: NoAction)
 
   @@index([userId, createdAt(sort: Desc)], map: "user_companies_user_created_idx")
   @@map("user_companies")
@@ -71,13 +131,13 @@ model UserCompany {
 
 model ExpenseType {
   id              BigInt        @id @default(autoincrement())
-  code            String        @unique(map: "expense_types_code_key") @db.NVarChar(64)
+  code            String        @unique @db.NVarChar(64)
   label           String        @db.NVarChar(128)
-  description     String?       @db.NVarChar(1000)
+  description     String?
   requiresReceipt Boolean       @default(true) @map("requires_receipt")
   isActive        Boolean       @default(true) @map("is_active")
   sortOrder       Int           @default(100) @map("sort_order")
-  createdAt       DateTime      @default(now()) @map("created_at") @db.DateTime2
+  createdAt       DateTime      @default(now()) @map("created_at")
   items           ExpenseItem[]
 
   @@map("expense_types")
@@ -90,7 +150,7 @@ model ExpenseReport {
   expenseCode           String        @unique(map: "expense_reports_expense_code_idx") @map("expense_code") @db.NVarChar(32)
   expenseDate           DateTime      @map("expense_date") @db.Date
   companyId             String?       @map("company_id") @db.UniqueIdentifier
-  companyAddress        String?       @map("company_address") @db.NVarChar(1000)
+  companyAddress        String?       @map("company_address")
   companyName           String?       @map("company_name") @db.NVarChar(255)
   companyTaxId          String?       @map("company_tax_id") @db.NVarChar(64)
   companyLogoDataUrl    String?       @map("company_logo_data_url") @db.NText
@@ -103,15 +163,15 @@ model ExpenseReport {
   note                  String?       @db.NVarChar(4000)
   status                String        @default("draft") @db.NVarChar(32)
   totalAmountThb        Decimal       @default(0) @map("total_amount_thb") @db.Decimal(12, 2)
-  submittedAt           DateTime?     @map("submitted_at") @db.DateTime2
-  exportedAt            DateTime?     @map("exported_at") @db.DateTime2
-  createdAt             DateTime      @default(now()) @map("created_at") @db.DateTime2
-  updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime2
-  userAccount           UserAccount   @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
-  company               UserCompany?  @relation(fields: [companyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  submittedAt           DateTime?     @map("submitted_at")
+  exportedAt            DateTime?     @map("exported_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at")
   items                 ExpenseItem[]
+  company               UserCompany?  @relation(fields: [companyId], references: [id], onUpdate: NoAction)
+  userAccount           UserAccount   @relation(fields: [userId], references: [userId], onUpdate: NoAction)
 
-  @@unique([userId, expenseDate], map: "expense_reports_user_id_expense_date_key")
+  @@unique([userId, expenseDate])
   @@index([userId, expenseDate(sort: Desc)], map: "expense_reports_user_date_idx")
   @@index([companyId], map: "expense_reports_company_idx")
   @@map("expense_reports")
@@ -123,12 +183,12 @@ model ExpenseItem {
   expenseTypeId    BigInt?          @map("expense_type_id")
   expenseTypeLabel String           @map("expense_type_label") @db.NVarChar(128)
   amountThb        Decimal          @map("amount_thb") @db.Decimal(12, 2)
-  remark           String?          @db.NVarChar(1000)
+  remark           String?
   lineNumber       Int              @default(1) @map("line_number")
-  createdAt        DateTime         @default(now()) @map("created_at") @db.DateTime2
-  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime2
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at")
+  expenseType      ExpenseType?     @relation(fields: [expenseTypeId], references: [id], onUpdate: NoAction)
   report           ExpenseReport    @relation(fields: [reportId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  expenseType      ExpenseType?     @relation(fields: [expenseTypeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   receipts         ExpenseReceipt[]
 
   @@index([reportId, lineNumber], map: "expense_items_report_line_idx")
@@ -139,11 +199,11 @@ model ExpenseReceipt {
   id               String      @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
   expenseItemId    String      @map("expense_item_id") @db.UniqueIdentifier
   bucketName       String      @default("expense-receipts") @map("bucket_name") @db.NVarChar(128)
-  objectPath       String      @unique(map: "expense_receipts_object_path_key") @map("object_path") @db.NVarChar(1024)
+  objectPath       String      @unique @map("object_path") @db.NVarChar(1024)
   originalFileName String      @map("original_file_name") @db.NVarChar(255)
   mimeType         String?     @map("mime_type") @db.NVarChar(128)
   fileSizeBytes    BigInt?     @map("file_size_bytes")
-  createdAt        DateTime    @default(now()) @map("created_at") @db.DateTime2
+  createdAt        DateTime    @default(now()) @map("created_at")
   expenseItem      ExpenseItem @relation(fields: [expenseItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([expenseItemId], map: "expense_receipts_item_idx")

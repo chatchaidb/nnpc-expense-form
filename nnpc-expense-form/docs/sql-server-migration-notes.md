@@ -20,6 +20,24 @@ DATABASE_URL="sqlserver://internal-sql-host:1433;database=nnpc_expense;schema=db
 
 For production, prefer a trusted certificate and remove `trustServerCertificate=true` once the server certificate chain is configured.
 
+## Ready-to-run Schema Script
+
+Use `prisma/sql-server-ready-schema.sql` to prepare a SQL Server database for the current app runtime. It creates the Better Auth login tables, app-owned `user_accounts`, profile/company/expense tables, key constraints, indexes, and starter expense types.
+
+Super admins are not created through the app UI. Create the account through the normal sign-up flow first, then promote it in SQL editor:
+
+```sql
+UPDATE dbo.user_accounts
+SET role = 'central_admin',
+    access_status = 'approved',
+    approved_at = SYSUTCDATETIME(),
+    approved_by = NULL,
+    disabled_at = NULL,
+    disabled_by = NULL,
+    updated_at = SYSUTCDATETIME()
+WHERE email = 'admin@example.com';
+```
+
 The local project currently needs Prisma packages installed before project-root Prisma commands can load `prisma.config.ts`:
 
 ```bash

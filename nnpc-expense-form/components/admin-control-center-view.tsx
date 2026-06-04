@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { SESSION_EXPIRED_MESSAGE } from "@/lib/supabase-api";
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/api-client";
 import {
   adminManageUserAccount,
   deleteAdminUserStorageAssets,

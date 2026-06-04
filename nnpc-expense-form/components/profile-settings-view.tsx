@@ -22,6 +22,7 @@ import {
   upsertUserProfile,
   type UserProfile,
 } from "@/lib/profile-data";
+import { useI18n } from "@/lib/i18n";
 import { type UserAccount } from "@/lib/user-account-data";
 
 type ProfileMessage = {
@@ -48,6 +49,7 @@ function ProtectedProfileSettings({
   logout: () => Promise<void>;
   session: AuthSession;
 }) {
+  const { t } = useI18n();
   const [fullName, setFullName] = useState("");
   const [department, setDepartment] = useState("");
   const [message, setMessage] = useState<ProfileMessage | null>(null);
@@ -82,7 +84,7 @@ function ProtectedProfileSettings({
           text:
             error instanceof Error
               ? error.message
-              : "Your profile could not be loaded from Supabase.",
+              : t("profile.loadError"),
         });
       })
       .finally(() => {
@@ -94,7 +96,7 @@ function ProtectedProfileSettings({
     return () => {
       isActive = false;
     };
-  }, [logout, session.accessToken]);
+  }, [logout, session.accessToken, t]);
 
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
@@ -111,7 +113,7 @@ function ProtectedProfileSettings({
       setDepartment(savedProfile.department);
       setMessage({
         tone: "info",
-        text: "Profile saved. New expense pages will use these defaults.",
+        text: t("profile.savedMessage"),
       });
     } catch (error) {
       if (error instanceof Error && error.message === SESSION_EXPIRED_MESSAGE) {
@@ -122,7 +124,7 @@ function ProtectedProfileSettings({
       setMessage({
         tone: "error",
         text:
-          error instanceof Error ? error.message : "Your profile could not be saved.",
+          error instanceof Error ? error.message : t("profile.saveError"),
       });
     } finally {
       setIsSavingProfile(false);
@@ -140,7 +142,7 @@ function ProtectedProfileSettings({
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">
-              Profile
+              {t("nav.profile")}
             </h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">{session.userEmail}</p>
           </div>
@@ -157,7 +159,7 @@ function ProtectedProfileSettings({
               }}
             >
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </header>
@@ -168,26 +170,28 @@ function ProtectedProfileSettings({
           <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
             <CardHeader className="gap-3 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
               <Badge className="rounded-full px-3 py-1" variant="secondary">
-                User profile
+                {t("profile.userProfile")}
               </Badge>
-              <CardTitle className="font-serif text-3xl tracking-tight">Default form values</CardTitle>
+              <CardTitle className="font-serif text-3xl tracking-tight">
+                {t("profile.defaultFormValues")}
+              </CardTitle>
               <CardDescription className="text-sm leading-7">
-                These values prefill new expense pages. You can still adjust them per report.
+                {t("profile.formDescription")}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
               {isLoadingProfile ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-background/60 px-5 py-8 text-sm text-muted-foreground">
-                  Loading your profile from Supabase...
+                  {t("profile.loading")}
                 </div>
               ) : (
                 <>
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">Full name</span>
+                    <span className="text-sm font-medium text-foreground">{t("common.fullName")}</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                      placeholder="Your name for new expense forms"
+                      placeholder={t("profile.yourNamePlaceholder")}
                       type="text"
                       value={fullName}
                       onChange={(event) => setFullName(event.target.value)}
@@ -195,10 +199,10 @@ function ProtectedProfileSettings({
                   </label>
 
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">Department</span>
+                    <span className="text-sm font-medium text-foreground">{t("common.department")}</span>
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                      placeholder="Your department for new expense forms"
+                      placeholder={t("profile.yourDepartmentPlaceholder")}
                       type="text"
                       value={department}
                       onChange={(event) => setDepartment(event.target.value)}
@@ -212,14 +216,16 @@ function ProtectedProfileSettings({
                     onClick={handleSaveProfile}
                   >
                     <Save className="size-4" />
-                    {isSavingProfile ? "Saving..." : "Save profile"}
+                    {isSavingProfile ? t("common.saving") : t("profile.saveProfile")}
                   </Button>
                 </>
               )}
 
               {message ? (
                 <Alert variant={message.tone === "error" ? "destructive" : "default"}>
-                  <AlertTitle>{message.tone === "error" ? "Profile issue" : "Profile saved"}</AlertTitle>
+                  <AlertTitle>
+                    {message.tone === "error" ? t("profile.profileIssue") : t("profile.profileSaved")}
+                  </AlertTitle>
                   <AlertDescription>{message.text}</AlertDescription>
                 </Alert>
               ) : null}
@@ -230,7 +236,7 @@ function ProtectedProfileSettings({
             <Card className="rounded-[2rem] border-border/60 py-0">
               <CardContent className="px-5 py-5">
                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                  Preview
+                  {t("common.preview")}
                 </p>
                 <div className="mt-4 space-y-4">
                   <div className="flex items-start gap-3 rounded-3xl border border-white/10 bg-background/65 p-4">
@@ -239,10 +245,10 @@ function ProtectedProfileSettings({
                     </span>
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                        Default employee name
+                        {t("profile.defaultEmployeeName")}
                       </p>
                       <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewProfile.fullName || "Will fall back to your email name"}
+                        {previewProfile.fullName || t("profile.nameFallback")}
                       </p>
                     </div>
                   </div>
@@ -253,10 +259,10 @@ function ProtectedProfileSettings({
                     </span>
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                        Default department
+                        {t("profile.defaultDepartment")}
                       </p>
                       <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewProfile.department || "Blank until you add one"}
+                        {previewProfile.department || t("profile.blankDepartment")}
                       </p>
                     </div>
                   </div>

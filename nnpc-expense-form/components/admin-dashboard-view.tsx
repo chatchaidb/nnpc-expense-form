@@ -26,7 +26,8 @@ import {
   type AdminExpenseDashboard,
 } from "@/lib/admin-data";
 import { formatCurrency } from "@/lib/expense-data";
-import { SESSION_EXPIRED_MESSAGE } from "@/lib/supabase-api";
+import { useI18n } from "@/lib/i18n";
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/api-client";
 import { type UserAccount } from "@/lib/user-account-data";
 
 type AdminMessage = {
@@ -64,6 +65,7 @@ function ProtectedAdminDashboard({
   logout: () => Promise<void>;
   session: AuthSession;
 }) {
+  const { t } = useI18n();
   const normalizedInitialPeriod = normalizeAdminPeriod(initialPeriod);
   const [draftPeriod, setDraftPeriod] = useState(normalizedInitialPeriod);
   const [activePeriod, setActivePeriod] = useState(normalizedInitialPeriod);
@@ -103,7 +105,7 @@ function ProtectedAdminDashboard({
           text:
             error instanceof Error
               ? error.message
-              : "The admin expense dashboard could not be loaded.",
+              : t("admin.dashboardLoadError"),
         });
       })
       .finally(() => {
@@ -115,7 +117,7 @@ function ProtectedAdminDashboard({
     return () => {
       isActive = false;
     };
-  }, [activePeriod, logout, requestNonce, session.accessToken]);
+  }, [activePeriod, logout, requestNonce, session.accessToken, t]);
 
   const handlePeriodSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -132,10 +134,10 @@ function ProtectedAdminDashboard({
         <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {account.role === "central_admin" ? "Central Admin" : "Admin"}
+              {account.role === "central_admin" ? t("common.centralAdmin") : t("common.admin")}
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-[2.6rem]">
-              Expenses insight
+              {t("nav.expenseInsight")}
             </h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">{session.userEmail}</p>
           </div>
@@ -144,7 +146,7 @@ function ProtectedAdminDashboard({
             <ThemeSettingsSheet userEmail={session.userEmail} />
             <Button type="button" variant="outline" onClick={() => void logout()}>
               <LogOut className="size-4" />
-              Log out
+              {t("common.logout")}
             </Button>
           </div>
         </header>
@@ -156,10 +158,10 @@ function ProtectedAdminDashboard({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <CardTitle className="text-2xl font-semibold tracking-tight">
-                  User List
+                  {t("admin.userList")}
                 </CardTitle>
                 <CardDescription className="mt-2 text-[15px] leading-7">
-                  Quick summary only. Open a user to view daily expense detail.
+                  {t("admin.userListDescription")}
                 </CardDescription>
               </div>
 
@@ -168,7 +170,7 @@ function ProtectedAdminDashboard({
                 onSubmit={handlePeriodSubmit}
               >
                 <label className="flex w-full flex-col gap-1.5 text-sm sm:w-[13rem]">
-                  <span className="text-muted-foreground">Month</span>
+                  <span className="text-muted-foreground">{t("common.month")}</span>
                   <Input
                     className="h-10 bg-background"
                     type="month"
@@ -177,7 +179,7 @@ function ProtectedAdminDashboard({
                   />
                 </label>
                 <Button className="sm:min-w-[7rem]" type="submit">
-                  Update
+                  {t("common.update")}
                 </Button>
               </form>
             </div>
@@ -189,17 +191,20 @@ function ProtectedAdminDashboard({
             <CardContent className="grid gap-4 px-6 py-7 sm:grid-cols-3 sm:px-7">
               <div className="flex min-h-[9rem] flex-col justify-between rounded-lg border border-border bg-muted/15 px-5 py-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Users
+                  {t("admin.users")}
                 </div>
                 <div className="mt-3 text-4xl font-semibold tracking-tight">{dashboard.users.length}</div>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {dashboard.totals.usersWithMonthlyExpenses} active in {dashboard.periodLabel}
+                  {t("admin.activeInPeriod", {
+                    count: dashboard.totals.usersWithMonthlyExpenses,
+                    period: dashboard.periodLabel,
+                  })}
                 </p>
               </div>
 
               <div className="flex min-h-[9rem] flex-col justify-between rounded-lg border border-border bg-muted/15 px-5 py-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Month Total
+                  {t("admin.monthTotal")}
                 </div>
                 <div className="mt-3 text-4xl font-semibold tracking-tight">
                   {formatCurrency(dashboard.totals.monthlyExpense)}
@@ -209,7 +214,7 @@ function ProtectedAdminDashboard({
 
               <div className="flex min-h-[9rem] flex-col justify-between rounded-lg border border-border bg-muted/15 px-5 py-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Year Total
+                  {t("admin.yearTotal")}
                 </div>
                 <div className="mt-3 text-4xl font-semibold tracking-tight">
                   {formatCurrency(dashboard.totals.yearlyExpense)}
@@ -226,7 +231,9 @@ function ProtectedAdminDashboard({
             variant={message.tone === "error" ? "destructive" : "default"}
           >
             <AlertTitle>
-              {message.tone === "error" ? "Admin Dashboard Unavailable" : "Admin Dashboard"}
+              {message.tone === "error"
+                ? t("admin.adminDashboardUnavailable")
+                : t("admin.adminDashboard")}
             </AlertTitle>
             <AlertDescription>{message.text}</AlertDescription>
           </Alert>
@@ -238,23 +245,23 @@ function ProtectedAdminDashboard({
               <AdminExpenseTableSkeleton />
             ) : !dashboard ? (
               <div className="px-5 py-10 text-sm text-muted-foreground sm:px-6">
-                No admin dashboard data available.
+                {t("admin.noDashboardData")}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="w-[17rem] px-4 py-3 sm:px-6">User</TableHead>
-                    <TableHead className="w-[18rem] px-4 py-3">Email</TableHead>
-                    <TableHead className="w-[8rem] px-4 py-3 text-right">Status</TableHead>
+                    <TableHead className="w-[17rem] px-4 py-3 sm:px-6">{t("common.user")}</TableHead>
+                    <TableHead className="w-[18rem] px-4 py-3">{t("common.email")}</TableHead>
+                    <TableHead className="w-[8rem] px-4 py-3 text-right">{t("common.status")}</TableHead>
                     <TableHead className="w-[10rem] px-4 py-3 text-right">
                       {dashboard.periodLabel}
                     </TableHead>
                     <TableHead className="w-[10rem] px-4 py-3 text-right">
-                      {dashboard.selectedYear} Total
+                      {t("admin.yearTotalColumn", { year: dashboard.selectedYear })}
                     </TableHead>
-                    <TableHead className="w-[6rem] px-4 py-3 text-right">Days</TableHead>
-                    <TableHead className="w-[7rem] px-4 py-3 text-right sm:px-6">Open</TableHead>
+                    <TableHead className="w-[6rem] px-4 py-3 text-right">{t("common.days")}</TableHead>
+                    <TableHead className="w-[7rem] px-4 py-3 text-right sm:px-6">{t("common.open")}</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -262,7 +269,7 @@ function ProtectedAdminDashboard({
                   {dashboard.users.length === 0 ? (
                     <TableRow>
                       <TableCell className="px-4 py-8 text-muted-foreground sm:px-6" colSpan={7}>
-                        No synced user accounts were found.
+                        {t("admin.noSyncedUsers")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -280,7 +287,7 @@ function ProtectedAdminDashboard({
                               className="rounded-full px-2.5 py-0.5"
                               variant={user.monthDaysWithExpenses > 0 ? "default" : "outline"}
                             >
-                              {user.monthDaysWithExpenses > 0 ? "Active" : "No Spend"}
+                              {user.monthDaysWithExpenses > 0 ? t("common.active") : t("common.noSpend")}
                             </Badge>
                           </div>
                         </TableCell>
@@ -298,7 +305,7 @@ function ProtectedAdminDashboard({
                             <Link
                               href={`/admin/expenses/${user.userId}?period=${encodeURIComponent(dashboard.selectedPeriod)}`}
                             >
-                              Open
+                              {t("admin.openUserDetail")}
                               <ChevronRight className="size-4" />
                             </Link>
                           </Button>
