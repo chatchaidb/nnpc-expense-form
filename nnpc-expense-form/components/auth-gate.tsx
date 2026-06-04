@@ -63,6 +63,25 @@ type BetterSessionData = {
   };
 };
 
+function readAuthErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object") {
+    return fallback;
+  }
+
+  const authError = error as {
+    code?: string;
+    message?: string;
+    statusText?: string;
+  };
+  const detail = authError.message ?? authError.statusText ?? authError.code;
+
+  if (!detail || detail === fallback) {
+    return fallback;
+  }
+
+  return detail;
+}
+
 function buildLocalAuth() {
   const timestamp = new Date().toISOString();
   const session = {
@@ -233,12 +252,18 @@ export default function AuthGate({
       if (result.error) {
         setAuthMessage({
           tone: "error",
-          text: result.error.message ?? t("auth.authIssue"),
+          text: readAuthErrorMessage(result.error, t("auth.requestSupabaseError")),
         });
         return;
       }
 
       setPassword("");
+      if (authMode === "signup") {
+        setAuthMessage({
+          tone: "info",
+          text: t("auth.accountCreated"),
+        });
+      }
       await sessionQuery.refetch();
     } catch (error) {
       setAuthMessage({

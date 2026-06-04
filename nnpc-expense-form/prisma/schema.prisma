@@ -7,6 +7,69 @@ datasource db {
   provider = "sqlserver"
 }
 
+model AuthUser {
+  id            String        @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name          String        @db.NVarChar(255)
+  email         String        @unique @db.NVarChar(320)
+  emailVerified Boolean       @default(false)
+  image         String?       @db.NVarChar(2048)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  accounts      AuthAccount[]
+  sessions      AuthSession[]
+  userAccount   UserAccount?
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  expiresAt DateTime
+  token     String   @unique @db.NVarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  ipAddress String?  @db.NVarChar(64)
+  userAgent String?  @db.NVarChar(1024)
+  userId    String   @db.UniqueIdentifier
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  accountId             String    @db.NVarChar(255)
+  providerId            String    @db.NVarChar(255)
+  userId                String    @db.UniqueIdentifier
+  accessToken           String?   @db.NVarChar(Max)
+  refreshToken          String?   @db.NVarChar(Max)
+  idToken               String?   @db.NVarChar(Max)
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?   @db.NVarChar(1024)
+  password              String?   @db.NVarChar(1024)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@unique([providerId, accountId], map: "account_provider_account_idx")
+  @@map("account")
+}
+
+model AuthVerification {
+  id         String   @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  identifier String   @db.NVarChar(255)
+  value      String   @db.NVarChar(Max)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
 model Profile {
   id           String      @id @map("id") @db.UniqueIdentifier
   fullName     String?     @map("full_name") @db.NVarChar(255)
@@ -34,6 +97,7 @@ model UserAccount {
   updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at")
   reports       ExpenseReport[]
   profile       Profile?
+  authUser      AuthUser?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   approvedBy    UserAccount?    @relation("UserAccountApprovedBy", fields: [approvedById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
   approvedUsers UserAccount[]   @relation("UserAccountApprovedBy")
   disabledBy    UserAccount?    @relation("UserAccountDisabledBy", fields: [disabledById], references: [userId], onDelete: NoAction, onUpdate: NoAction)

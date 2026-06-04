@@ -3,7 +3,6 @@ import { MssqlDialect } from "kysely";
 import * as Tarn from "tarn";
 import * as Tedious from "tedious";
 import { nextCookies } from "better-auth/next-js";
-import { prisma } from "@/lib/prisma";
 import { getSqlServerConnection } from "@/lib/sql-server";
 
 function createMssqlDialect() {
@@ -30,9 +29,9 @@ function createMssqlDialect() {
           },
           options: {
             database: connection.database,
-            encrypt: true,
+            encrypt: connection.encrypt,
             port: connection.port,
-            trustServerCertificate: true,
+            trustServerCertificate: connection.trustServerCertificate,
           },
           server: connection.server,
         }),
@@ -51,47 +50,6 @@ export const auth = betterAuth({
   database: {
     dialect: createMssqlDialect(),
     type: "mssql",
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await prisma.userAccount.upsert({
-            create: {
-              accessStatus: "pending",
-              displayName: user.name || user.email,
-              email: user.email,
-              role: "user",
-              userId: user.id,
-            },
-            update: {
-              displayName: user.name || user.email,
-              email: user.email,
-            },
-            where: {
-              userId: user.id,
-            },
-          });
-        },
-      },
-      update: {
-        after: async (user) => {
-          if (!user.id) {
-            return;
-          }
-
-          await prisma.userAccount.updateMany({
-            data: {
-              displayName: user.name || undefined,
-              email: user.email || undefined,
-            },
-            where: {
-              userId: user.id,
-            },
-          });
-        },
-      },
-    },
   },
   emailAndPassword: {
     enabled: true,

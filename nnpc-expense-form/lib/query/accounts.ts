@@ -85,19 +85,30 @@ export async function ensureUserAccount({
   const existingAccount = await prisma.userAccount.findUnique({
     where: { userId },
   });
+  const displayName = name || email;
 
   if (existingAccount) {
+    if (existingAccount.email !== email || existingAccount.displayName !== displayName) {
+      const account = await prisma.userAccount.update({
+        data: {
+          displayName,
+          email,
+        },
+        where: { userId },
+      });
+
+      return normalizeUserAccount(account);
+    }
+
     return normalizeUserAccount(existingAccount);
   }
 
-  const userCount = await prisma.userAccount.count();
   const account = await prisma.userAccount.create({
     data: {
-      accessStatus: userCount === 0 ? "approved" : "pending",
-      approvedAt: userCount === 0 ? new Date() : null,
-      displayName: name || email,
+      accessStatus: "pending",
+      displayName,
       email,
-      role: userCount === 0 ? "central_admin" : "user",
+      role: "user",
       userId,
     },
   });

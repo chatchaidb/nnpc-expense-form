@@ -1,6 +1,6 @@
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaMssql } from "@prisma/adapter-mssql";
-import { getSqlServerConfig } from "@/lib/sql-server";
+import { getSqlServerConnectionString } from "@/lib/sql-server";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -9,7 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter: new PrismaMssql(getSqlServerConfig()),
+    adapter: new PrismaMssql(getSqlServerConnectionString()),
   });
 
 if (process.env.NODE_ENV !== "production") {
