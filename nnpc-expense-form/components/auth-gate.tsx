@@ -22,23 +22,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authClient } from "@/lib/auth-client";
 import { useI18n } from "@/lib/i18n";
 import {
   LOCAL_DEVELOPMENT_ACCESS_TOKEN,
   LOCAL_DEVELOPMENT_USER_EMAIL,
-  isSupabaseConfigured,
+  isDatabaseConfigured,
 } from "@/lib/local-mode";
-import { SESSION_EXPIRED_MESSAGE } from "@/lib/supabase-api";
 import {
   getCurrentUserAccount,
   type AccountRole,
@@ -47,29 +39,6 @@ import {
 import { cn } from "@/lib/utils";
 
 type AuthMode = "login" | "signup";
-
-type AuthPayload = {
-  access_token?: string;
-  refresh_token?: string;
-  expires_at?: number;
-  expires_in?: number;
-  session?: {
-    access_token?: string;
-    refresh_token?: string;
-    expires_at?: number;
-    expires_in?: number;
-  };
-  user?: {
-    email?: string;
-  };
-  message?: string;
-  msg?: string;
-  error_description?: string;
-};
-
-type AuthHashPayload = AuthPayload & {
-  type?: string;
-};
 
 type AuthMessage = {
   text: string;
@@ -83,221 +52,61 @@ export type AuthSession = {
   userEmail: string;
 };
 
-const AUTH_STORAGE_KEY = "nnpc-expense-auth-session";
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  "";
-const SESSION_EXPIRED_COPY = "Your session expired. Log in again.";
-const ACCOUNT_REFRESH_INTERVAL_MS = 60_000;
+type BetterSessionData = {
+  session?: {
+    expiresAt?: Date | string;
+  };
+  user?: {
+    email?: string;
+    id?: string;
+    name?: string;
+  };
+};
 
-function decodeAccessTokenPayload(accessToken: string) {
-  const [, payloadSegment] = accessToken.split(".");
-
-  if (!payloadSegment) {
-    return null;
-  }
-
-  try {
-    const paddedSegment = payloadSegment.padEnd(
-      payloadSegment.length + ((4 - (payloadSegment.length % 4)) % 4),
-      "=",
-    );
-    const normalizedSegment = paddedSegment.replace(/-/g, "+").replace(/_/g, "/");
-
-    return JSON.parse(globalThis.atob(normalizedSegment)) as {
-      email?: string;
-      exp?: number;
-    };
-  } catch {
-    return null;
-  }
-}
-
-function readErrorMessage(payload: AuthPayload) {
-  return (
-    payload.error_description ??
-    payload.msg ??
-    payload.message ??
-    "Supabase authentication failed."
-  );
-}
-
-function readHashNumber(params: URLSearchParams, key: string) {
-  const value = params.get(key);
-
-  if (!value) {
-    return undefined;
-  }
-
-  const parsedValue = Number(value);
-
-  return Number.isFinite(parsedValue) ? parsedValue : undefined;
-}
-
-function readHashAuthPayload(hash: string) {
-  const normalizedHash = hash.startsWith("#") ? hash.slice(1) : hash;
-
-  if (!normalizedHash) {
-    return null;
-  }
-
-  const params = new URLSearchParams(normalizedHash);
-  const accessToken = params.get("access_token");
-  const errorDescription = params.get("error_description");
-  const message = params.get("message");
-
-  if (!accessToken && !errorDescription && !message) {
-    return null;
-  }
-
-  const email = params.get("email");
-
-  return {
-    access_token: accessToken ?? undefined,
-    error_description: errorDescription ?? undefined,
-    expires_at: readHashNumber(params, "expires_at"),
-    expires_in: readHashNumber(params, "expires_in"),
-    message: message ?? undefined,
-    refresh_token: params.get("refresh_token") ?? undefined,
-    type: params.get("type") ?? undefined,
-    user: email ? { email } : undefined,
-  } satisfies AuthHashPayload;
-}
-
-function clearLocationHash() {
-  window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-}
-
-function readStoredSession(rawValue: string) {
-  const parsedValue = JSON.parse(rawValue) as Partial<AuthSession>;
-
-  if (
-    typeof parsedValue.accessToken !== "string" ||
-    typeof parsedValue.userEmail !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    accessToken: parsedValue.accessToken,
-    refreshToken:
-      typeof parsedValue.refreshToken === "string" ? parsedValue.refreshToken : "",
-    userEmail: parsedValue.userEmail,
-    expiresAt:
-      typeof parsedValue.expiresAt === "number"
-        ? parsedValue.expiresAt
-        : deriveAccessTokenExpiry(parsedValue.accessToken),
+function buildLocalAuth() {
+  const timestamp = new Date().toISOString();
+  const session = {
+    accessToken: LOCAL_DEVELOPMENT_ACCESS_TOKEN,
+    expiresAt: null,
+    refreshToken: "",
+    userEmail: LOCAL_DEVELOPMENT_USER_EMAIL,
   } satisfies AuthSession;
+  const account = {
+    accessStatus: "approved",
+    approvedAt: timestamp,
+    approvedBy: "local-development",
+    createdAt: timestamp,
+    disabledAt: null,
+    disabledBy: null,
+    displayName: "Local reviewer",
+    email: LOCAL_DEVELOPMENT_USER_EMAIL,
+    role: "central_admin",
+    updatedAt: timestamp,
+    userId: "local-reviewer",
+  } satisfies UserAccount;
+
+  return { account, session };
 }
 
-function deriveAccessTokenExpiry(accessToken: string) {
-  const decodedPayload = decodeAccessTokenPayload(accessToken);
-
-  return typeof decodedPayload?.exp === "number" ? decodedPayload.exp : null;
-}
-
-function deriveAccessTokenEmail(accessToken: string) {
-  const decodedPayload = decodeAccessTokenPayload(accessToken);
-
-  return typeof decodedPayload?.email === "string" ? decodedPayload.email : "";
-}
-
-function buildAuthSession({
-  fallbackEmail,
-  payload,
-  previousSession,
-}: {
-  fallbackEmail: string;
-  payload: AuthPayload;
-  previousSession?: AuthSession | null;
-}) {
-  const accessToken = payload.access_token ?? payload.session?.access_token ?? "";
-
-  if (!accessToken) {
+function readSessionExpiry(expiresAt?: Date | string) {
+  if (!expiresAt) {
     return null;
   }
 
-  const expiresIn = payload.expires_in ?? payload.session?.expires_in;
-  const nextUserEmail =
-    payload.user?.email ??
-    previousSession?.userEmail ??
-    fallbackEmail;
+  const expiryDate = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
 
+  return Number.isNaN(expiryDate.getTime())
+    ? null
+    : Math.floor(expiryDate.getTime() / 1000);
+}
+
+function buildAuthSession(sessionData: BetterSessionData) {
   return {
-    accessToken,
-    refreshToken:
-      payload.refresh_token ??
-      payload.session?.refresh_token ??
-      previousSession?.refreshToken ??
-      "",
-    userEmail: nextUserEmail || deriveAccessTokenEmail(accessToken),
-    expiresAt:
-      payload.expires_at ??
-      payload.session?.expires_at ??
-      (typeof expiresIn === "number"
-        ? Math.floor(Date.now() / 1000) + expiresIn
-        : deriveAccessTokenExpiry(accessToken)),
+    accessToken: sessionData.user?.id ?? "",
+    expiresAt: readSessionExpiry(sessionData.session?.expiresAt),
+    refreshToken: "",
+    userEmail: sessionData.user?.email ?? "",
   } satisfies AuthSession;
-}
-
-function shouldRefreshSession(session: AuthSession) {
-  if (!session.refreshToken || !session.expiresAt) {
-    return false;
-  }
-
-  return Date.now() >= session.expiresAt * 1000 - 60_000;
-}
-
-function isSessionExpired(session: AuthSession) {
-  if (!session.expiresAt) {
-    return false;
-  }
-
-  return Date.now() >= session.expiresAt * 1000 - 15_000;
-}
-
-function isSessionExpiredError(error: unknown) {
-  return (
-    error instanceof Error &&
-    (error.message === SESSION_EXPIRED_COPY || error.message === SESSION_EXPIRED_MESSAGE)
-  );
-}
-
-async function requestSessionRefresh(currentSession: AuthSession) {
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !currentSession.refreshToken) {
-    throw new Error(SESSION_EXPIRED_COPY);
-  }
-
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_PUBLISHABLE_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      refresh_token: currentSession.refreshToken,
-    }),
-  });
-
-  const payload = (await response.json().catch(() => ({}))) as AuthPayload;
-
-  if (!response.ok) {
-    throw new Error(readErrorMessage(payload));
-  }
-
-  const nextSession = buildAuthSession({
-    fallbackEmail: currentSession.userEmail,
-    payload,
-    previousSession: currentSession,
-  });
-
-  if (!nextSession) {
-    throw new Error(SESSION_EXPIRED_COPY);
-  }
-
-  return nextSession;
 }
 
 export default function AuthGate({
@@ -313,354 +122,86 @@ export default function AuthGate({
   }) => ReactNode;
 }) {
   const { t } = useI18n();
-  const isLocalMode = !isSupabaseConfigured();
-  const [isReady, setIsReady] = useState(false);
+  const isLocalMode = !isDatabaseConfigured();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
-  const [isSubmittingRecovery, setIsSubmittingRecovery] = useState(false);
-  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
-  const [isSubmittingResetPassword, setIsSubmittingResetPassword] = useState(false);
   const [authMessage, setAuthMessage] = useState<AuthMessage | null>(null);
-  const [resetPasswordEmail, setResetPasswordEmail] = useState("");
-  const [resetPasswordMessage, setResetPasswordMessage] = useState<AuthMessage | null>(null);
-  const [recoveryPassword, setRecoveryPassword] = useState("");
-  const [recoveryPasswordConfirmation, setRecoveryPasswordConfirmation] = useState("");
-  const [recoverySession, setRecoverySession] = useState<AuthSession | null>(null);
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const sessionQuery = authClient.useSession();
+  const sessionData = sessionQuery.data as BetterSessionData | null;
+  const sessionUserId = sessionData?.user?.id;
   const [account, setAccount] = useState<UserAccount | null>(null);
-  const [accountMessage, setAccountMessage] = useState<AuthMessage | null>(null);
-  const [isResolvingAccount, setIsResolvingAccount] = useState(false);
-  const [accountRefreshNonce, setAccountRefreshNonce] = useState(0);
-
-  const persistSession = (nextSession: AuthSession) => {
-    setSession(nextSession);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession));
-  };
-
-  const clearSession = (message: AuthMessage | null = null) => {
-    setSession(null);
-    setAccount(null);
-    setAccountMessage(null);
-    setIsResetPasswordDialogOpen(false);
-    setIsSubmittingResetPassword(false);
-    setResetPasswordEmail("");
-    setResetPasswordMessage(null);
-    setRecoverySession(null);
-    setRecoveryPassword("");
-    setRecoveryPasswordConfirmation("");
-    setPassword("");
-    setAuthMode("login");
-    setAuthMessage(message);
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-  };
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [isLoadingAccount, setIsLoadingAccount] = useState(false);
 
   const refreshAccount = async () => {
-    setAccountRefreshNonce((currentNonce) => currentNonce + 1);
+    const nextAccount = await getCurrentUserAccount("");
+    setAccount(nextAccount);
+    setAccountMessage(null);
   };
 
   useEffect(() => {
-    if (isLocalMode) {
-      return;
-    }
-
-    let isActive = true;
-
-    const restoreSession = async () => {
-      const hashPayload = readHashAuthPayload(window.location.hash);
-
-      if (hashPayload) {
-        clearLocationHash();
-
-        if (!hashPayload.access_token) {
-          if (isActive) {
-            setAuthMode("login");
-            setAuthMessage({
-              tone: "error",
-              text: readErrorMessage(hashPayload),
-            });
-            setIsReady(true);
-          }
-          return;
-        }
-
-        const nextHashSession = buildAuthSession({
-          fallbackEmail: "",
-          payload: hashPayload,
-        });
-
-        if (!nextHashSession) {
-          if (isActive) {
-            setAuthMessage({
-              tone: "error",
-              text: t("auth.recoveryInvalid"),
-            });
-            setIsReady(true);
-          }
-          return;
-        }
-
-        if (hashPayload.type === "recovery") {
-          window.localStorage.removeItem(AUTH_STORAGE_KEY);
-
-          if (isActive) {
-            setSession(null);
-            setAccount(null);
-            setAccountMessage(null);
-            setRecoverySession(nextHashSession);
-            setRecoveryPassword("");
-            setRecoveryPasswordConfirmation("");
-            setEmail(nextHashSession.userEmail);
-            setPassword("");
-            setAuthMode("login");
-            setAuthMessage({
-              tone: "info",
-              text: t("auth.recoveryPrompt"),
-            });
-            setIsReady(true);
-          }
-          return;
-        }
-
-        if (isActive) {
-          persistSession(nextHashSession);
-          setRecoverySession(null);
-          setAuthMessage(
-            hashPayload.type === "signup"
-              ? {
-                  tone: "info",
-                  text: t("auth.emailConfirmed"),
-                }
-              : null,
-          );
-          setIsReady(true);
-        }
-        return;
-      }
-
-      const storedSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
-
-      if (!storedSession) {
-        if (isActive) {
-          setIsReady(true);
-        }
-        return;
-      }
-
-      try {
-        const parsedSession = readStoredSession(storedSession);
-
-        if (!parsedSession) {
-          window.localStorage.removeItem(AUTH_STORAGE_KEY);
-
-          if (isActive) {
-            setIsReady(true);
-          }
-
-          return;
-        }
-
-        const nextSession = shouldRefreshSession(parsedSession)
-          ? await requestSessionRefresh(parsedSession)
-          : isSessionExpired(parsedSession)
-            ? null
-            : parsedSession;
-
-        if (isActive) {
-          if (nextSession) {
-            persistSession(nextSession);
-            setAuthMessage(null);
-          } else {
-            clearSession({
-              tone: "info",
-              text: t("auth.sessionExpired"),
-            });
-          }
-        }
-      } catch {
-        if (isActive) {
-          clearSession({
-            tone: "info",
-            text: SESSION_EXPIRED_COPY,
-          });
-        }
-      } finally {
-        if (isActive) {
-          setIsReady(true);
-        }
-      }
-    };
-
-    void restoreSession();
-
-    return () => {
-      isActive = false;
-    };
-  }, [isLocalMode, t]);
-
-  useEffect(() => {
-    if (isLocalMode) {
-      return;
-    }
-
-    if (!session?.expiresAt) {
-      return;
-    }
-
-    let isActive = true;
-
-    if (!session.refreshToken) {
-      const timeoutId = window.setTimeout(() => {
-        if (isActive) {
-          clearSession({
-            tone: "info",
-            text: SESSION_EXPIRED_COPY,
-          });
-        }
-      }, Math.max(session.expiresAt * 1000 - Date.now(), 0));
-
-      return () => {
-        isActive = false;
-        window.clearTimeout(timeoutId);
-      };
-    }
-
-    const refreshSession = async () => {
-      try {
-        const nextSession = await requestSessionRefresh(session);
-
-        if (isActive) {
-          persistSession(nextSession);
-          setAuthMessage(null);
-        }
-      } catch {
-        if (isActive) {
-          clearSession({
-            tone: "info",
-            text: SESSION_EXPIRED_COPY,
-          });
-        }
-      }
-    };
-
-    const refreshDelayMs = Math.max(session.expiresAt * 1000 - Date.now() - 60_000, 0);
-
-    const timeoutId = window.setTimeout(() => {
-      void refreshSession();
-    }, refreshDelayMs);
-
-    return () => {
-      isActive = false;
-      window.clearTimeout(timeoutId);
-    };
-  }, [isLocalMode, session, t]);
-
-  useEffect(() => {
-    if (isLocalMode) {
-      return;
-    }
-
-    if (!session) {
+    if (isLocalMode || !sessionUserId) {
       setAccount(null);
       setAccountMessage(null);
-      setIsResolvingAccount(false);
+      setIsLoadingAccount(false);
       return;
     }
 
     let isActive = true;
-    setIsResolvingAccount(true);
 
-    void getCurrentUserAccount(session.accessToken)
-      .then((nextAccount) => {
+    const loadAccount = async () => {
+      setIsLoadingAccount(true);
+      try {
+        const nextAccount = await getCurrentUserAccount("");
+
         if (!isActive) {
           return;
         }
 
         setAccount(nextAccount);
         setAccountMessage(null);
-      })
-      .catch((error: unknown) => {
+      } catch (error) {
         if (!isActive) {
           return;
         }
 
-        if (isSessionExpiredError(error)) {
-          clearSession({
-            tone: "info",
-            text: SESSION_EXPIRED_COPY,
-          });
-          return;
-        }
-
         setAccount(null);
-        setAccountMessage({
-          tone: "error",
-          text: error instanceof Error ? error.message : t("auth.accountLoadError"),
-        });
-      })
-      .finally(() => {
+        setAccountMessage(error instanceof Error ? error.message : t("auth.authIssue"));
+      } finally {
         if (isActive) {
-          setIsResolvingAccount(false);
+          setIsLoadingAccount(false);
         }
-      });
+      }
+    };
+
+    void loadAccount();
 
     return () => {
       isActive = false;
     };
-  }, [accountRefreshNonce, isLocalMode, session, t]);
-
-  useEffect(() => {
-    if (isLocalMode) {
-      return;
-    }
-
-    if (!session) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setAccountRefreshNonce((currentNonce) => currentNonce + 1);
-    }, ACCOUNT_REFRESH_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isLocalMode, session]);
+  }, [isLocalMode, sessionUserId, t]);
 
   if (isLocalMode) {
-    const timestamp = new Date().toISOString();
-    const localSession = {
-      accessToken: LOCAL_DEVELOPMENT_ACCESS_TOKEN,
-      expiresAt: null,
-      refreshToken: "",
-      userEmail: LOCAL_DEVELOPMENT_USER_EMAIL,
-    } satisfies AuthSession;
-    const localAccount = {
-      accessStatus: "approved",
-      approvedAt: timestamp,
-      approvedBy: "local-development",
-      createdAt: timestamp,
-      disabledAt: null,
-      disabledBy: null,
-      displayName: "Local reviewer",
-      email: LOCAL_DEVELOPMENT_USER_EMAIL,
-      role: "central_admin",
-      updatedAt: timestamp,
-      userId: "local-reviewer",
-    } satisfies UserAccount;
+    const localAuth = buildLocalAuth();
 
     return (
       <>
         {children({
-          account: localAccount,
+          ...localAuth,
           logout: async () => undefined,
           refreshAccount: async () => undefined,
-          session: localSession,
         })}
       </>
     );
   }
+
+  const logout = async () => {
+    await authClient.signOut();
+    setAccount(null);
+    await sessionQuery.refetch();
+  };
 
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -673,245 +214,43 @@ export default function AuthGate({
       return;
     }
 
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.missingSupabase"),
-      });
-      return;
-    }
-
     setIsSubmittingAuth(true);
     setAuthMessage(null);
 
     try {
-      const endpoint =
+      const credentials = {
+        email: email.trim(),
+        password,
+      };
+      const result =
         authMode === "signup"
-          ? `${SUPABASE_URL}/auth/v1/signup`
-          : `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+          ? await authClient.signUp.email({
+              ...credentials,
+              name: email.trim().split("@")[0] || email.trim(),
+            })
+          : await authClient.signIn.email(credentials);
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_PUBLISHABLE_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as AuthPayload;
-
-      if (!response.ok) {
+      if (result.error) {
         setAuthMessage({
           tone: "error",
-          text: readErrorMessage(payload),
+          text: result.error.message ?? t("auth.authIssue"),
         });
         return;
       }
 
-      const nextSession = buildAuthSession({
-        fallbackEmail: email.trim(),
-        payload,
-      });
-
-      if (nextSession) {
-        persistSession(nextSession);
-        setAccount(null);
-        setAccountMessage(null);
-        setAuthMessage(
-          authMode === "signup"
-            ? {
-                tone: "info",
-                text: t("auth.accountCreated"),
-              }
-            : null,
-        );
-      } else if (authMode === "signup") {
-        setAuthMode("login");
-        setAuthMessage({
-          tone: "info",
-          text: t("auth.accountCreatedConfirm"),
-        });
-      } else {
-        setAuthMessage({
-          tone: "error",
-          text: t("auth.loginSucceededNoToken"),
-        });
-      }
-
       setPassword("");
-    } catch {
+      await sessionQuery.refetch();
+    } catch (error) {
       setAuthMessage({
         tone: "error",
-        text: t("auth.requestSupabaseError"),
+        text: error instanceof Error ? error.message : t("auth.requestSupabaseError"),
       });
     } finally {
       setIsSubmittingAuth(false);
     }
   };
 
-  const handlePasswordResetRequest = async () => {
-    if (!resetPasswordEmail.trim()) {
-      setResetPasswordMessage({
-        tone: "error",
-        text: t("auth.resetEmailRequired"),
-      });
-      return;
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      setResetPasswordMessage({
-        tone: "error",
-        text: t("auth.missingSupabase"),
-      });
-      return;
-    }
-
-    setIsSubmittingResetPassword(true);
-    setResetPasswordMessage(null);
-
-    try {
-      const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_PUBLISHABLE_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: resetPasswordEmail.trim(),
-        }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as AuthPayload;
-
-      if (!response.ok) {
-        setResetPasswordMessage({
-          tone: "error",
-          text: readErrorMessage(payload),
-        });
-        return;
-      }
-
-      setEmail(resetPasswordEmail.trim());
-      setIsResetPasswordDialogOpen(false);
-      setResetPasswordEmail("");
-      setResetPasswordMessage(null);
-      setAuthMessage({
-        tone: "info",
-        text: t("auth.passwordResetEmailSent"),
-      });
-    } catch {
-      setResetPasswordMessage({
-        tone: "error",
-        text: t("auth.resetSupabaseError"),
-      });
-    } finally {
-      setIsSubmittingResetPassword(false);
-    }
-  };
-
-  const handleRecoverySubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!recoverySession) {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.missingRecoveryLink"),
-      });
-      return;
-    }
-
-    if (recoveryPassword.length < 8) {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.useEightChars"),
-      });
-      return;
-    }
-
-    if (recoveryPassword !== recoveryPasswordConfirmation) {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.passwordsDoNotMatch"),
-      });
-      return;
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.missingSupabase"),
-      });
-      return;
-    }
-
-    setIsSubmittingRecovery(true);
-    setAuthMessage(null);
-
-    try {
-      const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-        method: "PUT",
-        headers: {
-          apikey: SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${recoverySession.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          password: recoveryPassword,
-        }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as AuthPayload;
-
-      if (!response.ok) {
-        setAuthMessage({
-          tone: "error",
-          text: readErrorMessage(payload),
-        });
-        return;
-      }
-
-      setRecoverySession(null);
-      setRecoveryPassword("");
-      setRecoveryPasswordConfirmation("");
-      setPassword("");
-      setAuthMode("login");
-      setAuthMessage({
-        tone: "info",
-        text: t("auth.passwordUpdated"),
-      });
-    } catch {
-      setAuthMessage({
-        tone: "error",
-        text: t("auth.requestSupabaseError"),
-      });
-    } finally {
-      setIsSubmittingRecovery(false);
-    }
-  };
-
-  const logout = async () => {
-    if (session && SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY) {
-      try {
-        await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-          method: "POST",
-          headers: {
-            apikey: SUPABASE_PUBLISHABLE_KEY,
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-        });
-      } catch {
-        // Local session cleanup is enough when logout cannot reach Supabase.
-      }
-    }
-
-    clearSession();
-  };
-
-  if (!isReady || (session !== null && isResolvingAccount && account === null)) {
+  if (sessionQuery.isPending || (sessionData?.user && isLoadingAccount)) {
     return (
       <div className="page-shell min-h-screen">
         <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
@@ -938,9 +277,31 @@ export default function AuthGate({
     );
   }
 
-  if (!session) {
-    const isRecoveryMode = recoverySession !== null;
+  if (sessionData?.user && accountMessage && !account) {
+    return (
+      <AccessStateShell userEmail={sessionData.user.email}>
+        <AccessStateCard description={accountMessage} title={t("auth.authIssue")}>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void refreshAccount();
+              }}
+            >
+              {t("auth.refreshStatus")}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void logout()}>
+              <LogOut className="size-4" />
+              {t("common.logout")}
+            </Button>
+          </div>
+        </AccessStateCard>
+      </AccessStateShell>
+    );
+  }
 
+  if (!sessionData?.user || !account) {
     return (
       <div className="page-shell min-h-screen">
         <div className="mx-auto flex w-full max-w-7xl justify-end px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">
@@ -973,8 +334,8 @@ export default function AuthGate({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <FeatureCard
-                  icon={<Wallet className="size-4" />}
                   description={t("auth.featureDashboard.description")}
+                  icon={<Wallet className="size-4" />}
                   title={t("auth.featureDashboard.title")}
                 />
                 <FeatureCard
@@ -993,181 +354,89 @@ export default function AuthGate({
                   title={t("auth.featureTheme.title")}
                 />
               </div>
-
-              <div className="rounded-3xl border border-white/10 bg-background/65 px-5 py-5">
-                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                  {t("auth.accessWorkflow")}
-                </p>
-                <p className="mt-3 text-sm leading-7 text-foreground">
-                  {t("auth.accessWorkflowDescription")}
-                </p>
-              </div>
             </div>
           </section>
 
           <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
             <CardHeader className="gap-5 border-b border-border/60 px-6 py-6">
-              {isRecoveryMode ? (
-                <div className="inline-flex w-fit items-center rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-primary">
-                  {t("auth.passwordRecovery")}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-background/70 p-1">
-                  <Button
-                    className={cn(
-                      "h-10 flex-1 rounded-full px-4 shadow-none",
-                      authMode !== "login" &&
-                        "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
-                    )}
-                    type="button"
-                    variant={authMode === "login" ? "default" : "ghost"}
-                    onClick={() => {
-                      setAuthMode("login");
-                      setAuthMessage(null);
-                    }}
-                  >
-                    {t("auth.login")}
-                  </Button>
-                  <Button
-                    className={cn(
-                      "h-10 flex-1 rounded-full px-4 shadow-none",
-                      authMode !== "signup" &&
-                        "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
-                    )}
-                    type="button"
-                    variant={authMode === "signup" ? "default" : "ghost"}
-                    onClick={() => {
-                      setAuthMode("signup");
-                      setAuthMessage(null);
-                    }}
-                  >
-                    {t("auth.signup")}
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-background/70 p-1">
+                <Button
+                  className={cn(
+                    "h-10 flex-1 rounded-full px-4 shadow-none",
+                    authMode !== "login" &&
+                      "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
+                  )}
+                  type="button"
+                  variant={authMode === "login" ? "default" : "ghost"}
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthMessage(null);
+                  }}
+                >
+                  {t("auth.login")}
+                </Button>
+                <Button
+                  className={cn(
+                    "h-10 flex-1 rounded-full px-4 shadow-none",
+                    authMode !== "signup" &&
+                      "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
+                  )}
+                  type="button"
+                  variant={authMode === "signup" ? "default" : "ghost"}
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setAuthMessage(null);
+                  }}
+                >
+                  {t("auth.signup")}
+                </Button>
+              </div>
 
               <div className="space-y-2">
                 <CardTitle className="font-serif text-3xl tracking-tight">
-                  {isRecoveryMode
-                    ? t("auth.setNewPassword")
-                    : authMode === "login"
-                      ? t("auth.login")
-                      : t("auth.createWorkspace")}
+                  {authMode === "login" ? t("auth.login") : t("auth.createWorkspace")}
                 </CardTitle>
                 <CardDescription className="text-sm leading-7">
-                  {isRecoveryMode
-                    ? t("auth.recoveryDescription")
-                    : t("auth.supabaseAuthOnly")}
+                  {t("auth.supabaseAuthOnly")}
                 </CardDescription>
               </div>
             </CardHeader>
 
             <CardContent className="px-6 py-6">
-              <form
-                className="space-y-5"
-                onSubmit={isRecoveryMode ? handleRecoverySubmit : handleAuthSubmit}
-              >
-                {isRecoveryMode ? (
-                  <>
-                    <div className="rounded-2xl border border-white/10 bg-background/65 px-4 py-3 text-sm leading-6 text-muted-foreground">
-                      {t("auth.resettingAccessFor", {
-                        email: recoverySession.userEmail || "this account",
-                      })}
-                    </div>
+              <form className="space-y-5" onSubmit={handleAuthSubmit}>
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {t("common.email")}
+                  </span>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      autoComplete="email"
+                      className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
+                      placeholder="name@company.com"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </div>
+                </label>
 
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t("auth.newPassword")}
-                      </span>
-                      <div className="relative">
-                        <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          autoComplete="new-password"
-                          className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                          placeholder="At least 8 characters"
-                          type="password"
-                          value={recoveryPassword}
-                          onChange={(event) => setRecoveryPassword(event.target.value)}
-                        />
-                      </div>
-                    </label>
-
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t("auth.confirmNewPassword")}
-                      </span>
-                      <div className="relative">
-                        <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          autoComplete="new-password"
-                          className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                          placeholder="Repeat the new password"
-                          type="password"
-                          value={recoveryPasswordConfirmation}
-                          onChange={(event) =>
-                            setRecoveryPasswordConfirmation(event.target.value)
-                          }
-                        />
-                      </div>
-                    </label>
-                  </>
-                ) : (
-                  <>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t("common.email")}
-                      </span>
-                      <div className="relative">
-                        <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          autoComplete="email"
-                          className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                          placeholder="name@company.com"
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                        />
-                      </div>
-                    </label>
-
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t("common.password")}
-                      </span>
-                      <div className="relative">
-                        <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          autoComplete={
-                            authMode === "login" ? "current-password" : "new-password"
-                          }
-                          className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                          placeholder="At least 8 characters"
-                          type="password"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                        />
-                      </div>
-                    </label>
-
-                    {authMode === "login" ? (
-                      <div className="flex justify-end">
-                        <Button
-                          className="rounded-full px-4 text-xs uppercase tracking-[0.18em]"
-                          disabled={isSubmittingAuth || isSubmittingResetPassword}
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setResetPasswordEmail(email.trim());
-                            setResetPasswordMessage(null);
-                            setIsResetPasswordDialogOpen(true);
-                          }}
-                        >
-                          {t("auth.forgotPassword")}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </>
-                )}
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {t("common.password")}
+                  </span>
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                      className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
+                      placeholder="At least 8 characters"
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                  </div>
+                </label>
 
                 {authMessage ? (
                   <Alert
@@ -1188,169 +457,27 @@ export default function AuthGate({
 
                 <Button
                   className="h-12 w-full rounded-2xl text-sm"
-                  disabled={isRecoveryMode ? isSubmittingRecovery : isSubmittingAuth}
+                  disabled={isSubmittingAuth}
                   type="submit"
                 >
-                  {isRecoveryMode
-                    ? isSubmittingRecovery
-                      ? t("auth.savingNewPassword")
-                      : t("auth.saveNewPassword")
-                    : isSubmittingAuth
-                      ? t("auth.working")
-                      : authMode === "login"
-                        ? t("auth.login")
-                        : t("auth.createAccount")}
+                  {isSubmittingAuth
+                    ? t("auth.working")
+                    : authMode === "login"
+                      ? t("auth.login")
+                      : t("auth.createAccount")}
                   <ArrowRight className="size-4" />
                 </Button>
-
-                {isRecoveryMode ? (
-                  <Button
-                    className="w-full rounded-2xl"
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setRecoverySession(null);
-                      setRecoveryPassword("");
-                      setRecoveryPasswordConfirmation("");
-                      setAuthMessage(null);
-                    }}
-                  >
-                    {t("auth.login")}
-                  </Button>
-                ) : null}
               </form>
             </CardContent>
           </Card>
         </div>
-
-        <Dialog
-          open={isResetPasswordDialogOpen}
-          onOpenChange={(open) => {
-            if (isSubmittingResetPassword) {
-              return;
-            }
-
-            setIsResetPasswordDialogOpen(open);
-
-            if (!open) {
-              setResetPasswordMessage(null);
-            }
-          }}
-        >
-          <DialogContent
-            className="rounded-[2rem] border-border/60 p-0 sm:max-w-[28rem]"
-            showCloseButton={!isSubmittingResetPassword}
-            onInteractOutside={(event) => {
-              if (isSubmittingResetPassword) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <DialogHeader className="gap-3 border-b border-border/60 px-6 py-5">
-              <DialogTitle className="font-serif text-3xl tracking-tight">
-                {t("auth.resetPassword")}
-              </DialogTitle>
-              <DialogDescription className="text-sm leading-7">
-                {t("auth.resetDescription")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form
-              className="space-y-5 px-6 py-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handlePasswordResetRequest();
-              }}
-            >
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">
-                  {t("common.email")}
-                </span>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    autoComplete="email"
-                    className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                    placeholder="name@company.com"
-                    type="email"
-                    value={resetPasswordEmail}
-                    onChange={(event) => setResetPasswordEmail(event.target.value)}
-                  />
-                </div>
-              </label>
-
-              {resetPasswordMessage ? (
-                <Alert
-                  className={cn(
-                    "rounded-2xl border-white/10",
-                    resetPasswordMessage.tone === "error"
-                      ? "border-destructive/30 bg-destructive/10"
-                      : "bg-background/70",
-                  )}
-                  variant={resetPasswordMessage.tone === "error" ? "destructive" : "default"}
-                >
-                  <AlertTitle>
-                    {resetPasswordMessage.tone === "error" ? t("auth.resetIssue") : t("auth.nextStep")}
-                  </AlertTitle>
-                  <AlertDescription>{resetPasswordMessage.text}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              <DialogFooter className="gap-2 border-t border-border/60 px-0 pt-5">
-                <Button
-                  className="rounded-full"
-                  disabled={isSubmittingResetPassword}
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsResetPasswordDialogOpen(false);
-                    setResetPasswordMessage(null);
-                  }}
-                >
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  className="rounded-full px-5"
-                  disabled={isSubmittingResetPassword}
-                  type="submit"
-                >
-                  {isSubmittingResetPassword ? t("auth.sending") : t("auth.sendResetLink")}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
-    );
-  }
-
-  if (!account) {
-    return (
-      <AccessStateShell>
-        <AccessStateCard
-          description={
-            accountMessage?.text ??
-            t("auth.accountUnavailable.description")
-          }
-          title={t("auth.accountUnavailable.title")}
-        >
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => void refreshAccount()}>
-              {t("common.tryAgain")}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => void logout()}>
-              <LogOut className="size-4" />
-              {t("common.logout")}
-            </Button>
-          </div>
-        </AccessStateCard>
-      </AccessStateShell>
     );
   }
 
   if (account.accessStatus === "pending") {
     return (
-      <AccessStateShell userEmail={session.userEmail}>
+      <AccessStateShell userEmail={sessionData.user.email}>
         <AccessStateCard
           description={t("auth.awaitingApproval.description")}
           title={t("auth.awaitingApproval.title")}
@@ -1371,7 +498,7 @@ export default function AuthGate({
 
   if (account.accessStatus === "disabled") {
     return (
-      <AccessStateShell userEmail={session.userEmail}>
+      <AccessStateShell userEmail={sessionData.user.email}>
         <AccessStateCard
           description={t("auth.accessDisabled.description")}
           title={t("auth.accessDisabled.title")}
@@ -1387,7 +514,7 @@ export default function AuthGate({
 
   if (allowedRoles && !allowedRoles.includes(account.role)) {
     return (
-      <AccessStateShell userEmail={session.userEmail}>
+      <AccessStateShell userEmail={sessionData.user.email}>
         <AccessStateCard
           description={t("auth.accessDenied.description")}
           title={t("auth.accessDenied.title")}
@@ -1406,7 +533,19 @@ export default function AuthGate({
     );
   }
 
-  return <>{children({ account, logout, refreshAccount, session })}</>;
+  return (
+    <>
+      {children({
+        account,
+        logout,
+        refreshAccount: async () => {
+          await sessionQuery.refetch();
+          await refreshAccount();
+        },
+        session: buildAuthSession(sessionData),
+      })}
+    </>
+  );
 }
 
 function AccessStateShell({

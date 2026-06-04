@@ -20,7 +20,7 @@ const taviraj = Taviraj({
 export const metadata: Metadata = {
   title: "NNPC Daily Expense",
   description:
-    "Minimal one-day expense reimbursement prototype backed by Next.js and Supabase email/password auth.",
+    "Minimal one-day expense reimbursement prototype backed by Next.js, Better Auth, and SQL Server.",
 };
 
 export default function RootLayout({

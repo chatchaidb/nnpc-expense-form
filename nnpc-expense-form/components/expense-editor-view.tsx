@@ -119,7 +119,6 @@ import {
   upsertExpenseDay,
 } from "../lib/report-data";
 import { getUserProfile, type UserProfile } from "../lib/profile-data";
-import { buildPublicStorageUrl } from "../lib/supabase-api";
 
 const EMPTY_COMPANY_VALUE = "__none__";
 const EXPORT_FORM_ROWS_PER_PAGE = 5;
@@ -480,7 +479,7 @@ function getFriendlyEditorError(
     return "Your session ended. Please sign in again.";
   }
 
-  if (/Missing Supabase URL|publishable key/i.test(message)) {
+  if (/Missing database URL|database/i.test(message)) {
     return "This page is not fully set up yet. Please ask the app owner to finish the setup.";
   }
 
@@ -2210,13 +2209,7 @@ function ProtectedExpenseEditor({
           isExpanded: false,
           isReceiptPreviewOpen: false,
         }));
-      const cachedCompanyLogoUrl =
-        nextSnapshot.companyLogoBucketName && nextSnapshot.companyLogoObjectPath
-          ? buildPublicStorageUrl(
-              nextSnapshot.companyLogoBucketName,
-              nextSnapshot.companyLogoObjectPath,
-            )
-          : "";
+      const cachedCompanyLogoUrl = nextSnapshot.companyLogoObjectPath;
 
       writeExpenseDayCache(cacheUserKey, expenseDate, {
         companyAddress: nextSnapshot.companyAddress,

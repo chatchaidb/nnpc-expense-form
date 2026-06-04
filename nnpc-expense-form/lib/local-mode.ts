@@ -1,14 +1,12 @@
 export const LOCAL_DEVELOPMENT_ACCESS_TOKEN = "local-development-access-token";
 export const LOCAL_DEVELOPMENT_USER_EMAIL = "local-reviewer@nnpc.local";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  "";
+export function isDatabaseConfigured() {
+  if (typeof window !== "undefined") {
+    return process.env.NEXT_PUBLIC_ENABLE_LOCAL_MODE !== "true";
+  }
 
-export function isSupabaseConfigured() {
-  return Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
+  return Boolean(process.env.DATABASE_URL);
 }
 
 export function isLocalDevelopmentAccessToken(accessToken: string) {

@@ -2,10 +2,11 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -20,6 +21,7 @@ type I18nContextValue = {
 };
 
 const I18N_STORAGE_KEY = "nnpc-expense-locale";
+const I18N_STORAGE_EVENT = "nnpc-expense-locale-change";
 
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: "English",
@@ -84,7 +86,7 @@ const en = {
     "Choose the interface language for navigation, forms, and system messages.",
   "settings.light": "Light",
   "settings.session": "Session",
-  "settings.sessionDescription": "This prototype stores reports and assets in Supabase.",
+  "settings.sessionDescription": "This prototype stores reports and assets in SQL Server.",
   "settings.signInSession": "Sign in to load a user session.",
   "settings.themeDescription":
     "Toggle the interface between a dark executive canvas and a bright review mode.",
@@ -98,11 +100,11 @@ const en = {
   "auth.accessDisabled.title": "Access disabled",
   "auth.accessWorkflow": "Access workflow",
   "auth.accessWorkflowDescription":
-    "New signups are created immediately in Supabase Auth, but app access stays pending until an admin approves the account in user management.",
+    "New signups are created immediately in Better Auth, but app access stays pending until an admin approves the account in user management.",
   "auth.accountCreated":
     "Account created. Access stays pending until an admin approves you.",
   "auth.accountCreatedConfirm":
-    "Account created. If email confirmation is enabled in Supabase, confirm your email first, then log in.",
+    "Account created. If email confirmation is enabled, confirm your email first, then log in.",
   "auth.accountLoadError": "Your account status could not be loaded.",
   "auth.accountUnavailable.description":
     "Your account status could not be resolved. Try again once the account record is available.",
@@ -121,10 +123,10 @@ const en = {
     "Track dates and totals without clutter, then open detail only when needed.",
   "auth.featureDashboard.title": "Concise dashboard",
   "auth.featureReceipt.description":
-    "Attach image receipts per row and sync them to Supabase Storage and Postgres.",
+    "Attach image receipts per row and sync them to the internal database.",
   "auth.featureReceipt.title": "Receipt workflow",
   "auth.featureSecure.description":
-    "Email and password auth is handled directly against your Supabase project.",
+    "Email and password auth is handled by Better Auth.",
   "auth.featureSecure.title": "Secure entry",
   "auth.featureTheme.description":
     "Dark mode is the default canvas, with a light mode toggle in Settings.",
@@ -134,14 +136,14 @@ const en = {
   "auth.heroTitle":
     "A cleaner way to move from totals to the full expense breakdown.",
   "auth.heroDescription":
-    "Sign in with Supabase, select a date from the dashboard, and manage all receipts and remarks in a focused single-day editor.",
+    "Sign in, select a date from the dashboard, and manage all receipts and remarks in a focused single-day editor.",
   "auth.initializing": "Initializing",
   "auth.loadingSecureWorkspace": "Loading secure workspace",
   "auth.login": "Log in",
   "auth.loginSucceededNoToken": "Login succeeded but no session token was returned.",
   "auth.missingRecoveryLink":
     "The recovery link is missing. Request a new password reset email.",
-  "auth.missingSupabase": "Missing Supabase URL or publishable key in .env.local.",
+  "auth.missingSupabase": "Missing database URL in .env.local.",
   "auth.newPassword": "New password",
   "auth.nextStep": "Next step",
   "auth.passwordRecovery": "Password recovery",
@@ -152,20 +154,20 @@ const en = {
   "auth.preparingWorkspace":
     "Preparing the expense console and restoring your access state.",
   "auth.recoveryDescription":
-    "This recovery link came from Supabase Auth. Save a new password here, then log back in.",
+    "Save a new password here, then log back in.",
   "auth.recoveryInvalid":
     "The recovery link is invalid or expired. Request a new password reset email.",
   "auth.recoveryPrompt": "Choose a new password to finish resetting your account.",
   "auth.refreshStatus": "Refresh status",
   "auth.requestSupabaseError":
-    "The request could not reach Supabase. Check your project URL and network access.",
+    "The request could not reach the app database. Check your database URL and network access.",
   "auth.resetDescription":
-    "Enter the email for the account. Supabase will send a recovery link so the user can set a new password.",
+    "Enter the email for the account. The auth service will send a recovery link so the user can set a new password.",
   "auth.resetEmailRequired": "Enter the email address for the account you want to reset.",
   "auth.resetIssue": "Reset issue",
   "auth.resetPassword": "Reset password",
   "auth.resetSupabaseError":
-    "The reset request could not reach Supabase. Check your project URL and network access.",
+    "The reset request could not reach the auth service. Check your database URL and network access.",
   "auth.resettingAccessFor": "Resetting access for {email}.",
   "auth.saveNewPassword": "Save new password",
   "auth.savingNewPassword": "Saving new password...",
@@ -175,15 +177,15 @@ const en = {
   "auth.setNewPassword": "Set a new password",
   "auth.signup": "Sign up",
   "auth.supabaseAuthOnly":
-    "Supabase email/password authentication only. New accounts enter a pending approval queue before they can use the app.",
+    "Email/password authentication only. New accounts enter a pending approval queue before they can use the app.",
   "auth.useEightChars": "Use at least 8 characters for the new password.",
   "auth.working": "Working...",
-  "dashboard.errorLoadSummaries": "Expense summaries could not be loaded from Supabase.",
-  "dashboard.loadingReports": "Loading reports from Supabase...",
+  "dashboard.errorLoadSummaries": "Expense summaries could not be loaded from the database.",
+  "dashboard.loadingReports": "Loading reports from the database...",
   "dashboard.noSavedDates": "No saved dates.",
   "company.addCompany": "Add company",
-  "company.companyCouldNotSave": "The company could not be saved to Supabase.",
-  "company.companyCouldNotUpdate": "The company could not be updated in Supabase.",
+  "company.companyCouldNotSave": "The company could not be saved to the database.",
+  "company.companyCouldNotUpdate": "The company could not be updated in the database.",
   "company.editCompany": "Edit company",
   "company.exportReady": "Export ready",
   "company.headerPreview": "Header preview",
@@ -194,8 +196,8 @@ const en = {
   "company.library": "Library",
   "company.libraryDescription":
     "Save reusable company names and logos once, then edit or reuse them from each day sheet before export.",
-  "company.loadError": "Saved companies could not be loaded from Supabase.",
-  "company.loading": "Loading saved companies from Supabase...",
+  "company.loadError": "Saved companies could not be loaded from the database.",
+  "company.loading": "Loading saved companies from the database...",
   "company.logoPreview": "Company logo preview",
   "company.nameAppears": "Your saved company name appears here",
   "company.nameRequired": "Company name is required.",
@@ -222,8 +224,8 @@ const en = {
   "profile.defaultFormValues": "Default form values",
   "profile.formDescription":
     "These values prefill new expense pages. You can still adjust them per report.",
-  "profile.loadError": "Your profile could not be loaded from Supabase.",
-  "profile.loading": "Loading your profile from Supabase...",
+  "profile.loadError": "Your profile could not be loaded from the database.",
+  "profile.loading": "Loading your profile from the database...",
   "profile.nameFallback": "Will fall back to your email name",
   "profile.profileIssue": "Profile issue",
   "profile.profileSaved": "Profile saved",
@@ -307,7 +309,7 @@ const th: Record<keyof typeof en, string> = {
   "settings.languageDescription": "เลือกภาษาของเมนู แบบฟอร์ม และข้อความระบบ",
   "settings.light": "สว่าง",
   "settings.session": "เซสชัน",
-  "settings.sessionDescription": "ต้นแบบนี้จัดเก็บรายงานและไฟล์ใน Supabase",
+  "settings.sessionDescription": "ต้นแบบนี้จัดเก็บรายงานและไฟล์ใน SQL Server",
   "settings.signInSession": "เข้าสู่ระบบเพื่อโหลดเซสชันผู้ใช้",
   "settings.themeDescription": "สลับอินเทอร์เฟซระหว่างพื้นหลังมืดและโหมดตรวจทานสว่าง",
   "settings.themeMode": "โหมดธีม",
@@ -319,10 +321,10 @@ const th: Record<keyof typeof en, string> = {
   "auth.accessDisabled.title": "การเข้าถึงถูกปิด",
   "auth.accessWorkflow": "ขั้นตอนการเข้าถึง",
   "auth.accessWorkflowDescription":
-    "บัญชีใหม่จะถูกสร้างใน Supabase Auth ทันที แต่สิทธิ์เข้าแอปจะรอจนกว่าผู้ดูแลอนุมัติในหน้าจัดการผู้ใช้",
+    "บัญชีใหม่จะถูกสร้างใน Better Auth ทันที แต่สิทธิ์เข้าแอปจะรอจนกว่าผู้ดูแลอนุมัติในหน้าจัดการผู้ใช้",
   "auth.accountCreated": "สร้างบัญชีแล้ว สิทธิ์เข้าใช้งานจะรอจนกว่าผู้ดูแลอนุมัติ",
   "auth.accountCreatedConfirm":
-    "สร้างบัญชีแล้ว หากเปิดยืนยันอีเมลใน Supabase ให้ยืนยันอีเมลก่อนแล้วค่อยเข้าสู่ระบบ",
+    "สร้างบัญชีแล้ว หากเปิดยืนยันอีเมล ให้ยืนยันอีเมลก่อนแล้วค่อยเข้าสู่ระบบ",
   "auth.accountLoadError": "ไม่สามารถโหลดสถานะบัญชีของคุณ",
   "auth.accountUnavailable.description":
     "ไม่สามารถตรวจสอบสถานะบัญชีได้ ลองอีกครั้งเมื่อมีข้อมูลบัญชีพร้อมใช้งาน",
@@ -340,10 +342,10 @@ const th: Record<keyof typeof en, string> = {
     "ติดตามวันที่และยอดรวมแบบไม่รก แล้วเปิดรายละเอียดเมื่อจำเป็น",
   "auth.featureDashboard.title": "แดชบอร์ดกระชับ",
   "auth.featureReceipt.description":
-    "แนบรูปใบเสร็จในแต่ละรายการและซิงก์ไปยัง Supabase Storage และ Postgres",
+    "แนบรูปใบเสร็จในแต่ละรายการและซิงก์ไปยังฐานข้อมูลภายใน",
   "auth.featureReceipt.title": "ขั้นตอนใบเสร็จ",
   "auth.featureSecure.description":
-    "ระบบอีเมลและรหัสผ่านเชื่อมกับโปรเจกต์ Supabase ของคุณโดยตรง",
+    "ระบบอีเมลและรหัสผ่านจัดการด้วย Better Auth",
   "auth.featureSecure.title": "เข้าใช้งานปลอดภัย",
   "auth.featureTheme.description": "ค่าเริ่มต้นเป็นโหมดมืด พร้อมสวิตช์โหมดสว่างในตั้งค่า",
   "auth.featureTheme.title": "ควบคุมธีม",
@@ -351,13 +353,13 @@ const th: Record<keyof typeof en, string> = {
   "auth.heroEyebrow": "เบิกค่าใช้จ่ายรายวันแบบยืนยันตัวตน",
   "auth.heroTitle": "วิธีที่เรียบง่ายกว่าในการไปจากยอดรวมสู่รายละเอียดค่าใช้จ่ายครบถ้วน",
   "auth.heroDescription":
-    "เข้าสู่ระบบด้วย Supabase เลือกวันที่จากแดชบอร์ด แล้วจัดการใบเสร็จและหมายเหตุทั้งหมดในหน้ารายวัน",
+    "เข้าสู่ระบบ เลือกวันที่จากแดชบอร์ด แล้วจัดการใบเสร็จและหมายเหตุทั้งหมดในหน้ารายวัน",
   "auth.initializing": "กำลังเริ่มต้น",
   "auth.loadingSecureWorkspace": "กำลังโหลดพื้นที่ทำงานที่ปลอดภัย",
   "auth.login": "เข้าสู่ระบบ",
   "auth.loginSucceededNoToken": "เข้าสู่ระบบสำเร็จ แต่ไม่ได้รับโทเคนเซสชัน",
   "auth.missingRecoveryLink": "ไม่พบลิงก์กู้คืน โปรดขออีเมลรีเซ็ตรหัสผ่านใหม่",
-  "auth.missingSupabase": "ไม่มี Supabase URL หรือ publishable key ใน .env.local",
+  "auth.missingSupabase": "ไม่มี database URL ใน .env.local",
   "auth.newPassword": "รหัสผ่านใหม่",
   "auth.nextStep": "ขั้นตอนถัดไป",
   "auth.passwordRecovery": "กู้คืนรหัสผ่าน",
@@ -367,19 +369,19 @@ const th: Record<keyof typeof en, string> = {
   "auth.passwordUpdated": "อัปเดตรหัสผ่านแล้ว เข้าสู่ระบบด้วยรหัสผ่านใหม่",
   "auth.preparingWorkspace": "กำลังเตรียมคอนโซลค่าใช้จ่ายและกู้คืนสถานะการเข้าถึง",
   "auth.recoveryDescription":
-    "ลิงก์กู้คืนนี้มาจาก Supabase Auth บันทึกรหัสผ่านใหม่ที่นี่ แล้วเข้าสู่ระบบอีกครั้ง",
+    "บันทึกรหัสผ่านใหม่ที่นี่ แล้วเข้าสู่ระบบอีกครั้ง",
   "auth.recoveryInvalid": "ลิงก์กู้คืนไม่ถูกต้องหรือหมดอายุ โปรดขออีเมลรีเซ็ตรหัสผ่านใหม่",
   "auth.recoveryPrompt": "เลือกรหัสผ่านใหม่เพื่อรีเซ็ตบัญชีให้เสร็จ",
   "auth.refreshStatus": "รีเฟรชสถานะ",
   "auth.requestSupabaseError":
-    "คำขอเชื่อมต่อ Supabase ไม่สำเร็จ ตรวจสอบ URL โปรเจกต์และเครือข่าย",
+    "คำขอเชื่อมต่อฐานข้อมูลแอปไม่สำเร็จ ตรวจสอบ database URL และเครือข่าย",
   "auth.resetDescription":
-    "กรอกอีเมลของบัญชี Supabase จะส่งลิงก์กู้คืนเพื่อให้ผู้ใช้ตั้งรหัสผ่านใหม่",
+    "กรอกอีเมลของบัญชี ระบบยืนยันตัวตนจะส่งลิงก์กู้คืนเพื่อให้ผู้ใช้ตั้งรหัสผ่านใหม่",
   "auth.resetEmailRequired": "กรอกอีเมลของบัญชีที่ต้องการรีเซ็ต",
   "auth.resetIssue": "ปัญหาการรีเซ็ต",
   "auth.resetPassword": "รีเซ็ตรหัสผ่าน",
   "auth.resetSupabaseError":
-    "ส่งคำขอรีเซ็ตไม่ถึง Supabase ตรวจสอบ URL โปรเจกต์และเครือข่าย",
+    "ส่งคำขอรีเซ็ตไม่ถึงระบบยืนยันตัวตน ตรวจสอบ database URL และเครือข่าย",
   "auth.resettingAccessFor": "กำลังรีเซ็ตการเข้าถึงสำหรับ {email}",
   "auth.saveNewPassword": "บันทึกรหัสผ่านใหม่",
   "auth.savingNewPassword": "กำลังบันทึกรหัสผ่านใหม่...",
@@ -389,15 +391,15 @@ const th: Record<keyof typeof en, string> = {
   "auth.setNewPassword": "ตั้งรหัสผ่านใหม่",
   "auth.signup": "สมัครใช้งาน",
   "auth.supabaseAuthOnly":
-    "ใช้การยืนยันตัวตนด้วยอีเมล/รหัสผ่านของ Supabase เท่านั้น บัญชีใหม่จะเข้าคิวรออนุมัติก่อนใช้แอป",
+    "ใช้การยืนยันตัวตนด้วยอีเมล/รหัสผ่านเท่านั้น บัญชีใหม่จะเข้าคิวรออนุมัติก่อนใช้แอป",
   "auth.useEightChars": "ใช้รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร",
   "auth.working": "กำลังทำงาน...",
-  "dashboard.errorLoadSummaries": "ไม่สามารถโหลดสรุปค่าใช้จ่ายจาก Supabase",
-  "dashboard.loadingReports": "กำลังโหลดรายงานจาก Supabase...",
+  "dashboard.errorLoadSummaries": "ไม่สามารถโหลดสรุปค่าใช้จ่ายจากฐานข้อมูล",
+  "dashboard.loadingReports": "กำลังโหลดรายงานจากฐานข้อมูล...",
   "dashboard.noSavedDates": "ยังไม่มีวันที่บันทึก",
   "company.addCompany": "เพิ่มบริษัท",
-  "company.companyCouldNotSave": "ไม่สามารถบันทึกบริษัทไปยัง Supabase",
-  "company.companyCouldNotUpdate": "ไม่สามารถอัปเดตบริษัทใน Supabase",
+  "company.companyCouldNotSave": "ไม่สามารถบันทึกบริษัทไปยังฐานข้อมูล",
+  "company.companyCouldNotUpdate": "ไม่สามารถอัปเดตบริษัทในฐานข้อมูล",
   "company.editCompany": "แก้ไขบริษัท",
   "company.exportReady": "พร้อมส่งออก",
   "company.headerPreview": "ตัวอย่างหัวเอกสาร",
@@ -407,8 +409,8 @@ const th: Record<keyof typeof en, string> = {
   "company.library": "คลังข้อมูล",
   "company.libraryDescription":
     "บันทึกชื่อบริษัทและโลโก้ที่ใช้ซ้ำได้ครั้งเดียว แล้วแก้ไขหรือนำไปใช้จากชีทรายวันก่อนส่งออก",
-  "company.loadError": "ไม่สามารถโหลดบริษัทที่บันทึกจาก Supabase",
-  "company.loading": "กำลังโหลดบริษัทที่บันทึกจาก Supabase...",
+  "company.loadError": "ไม่สามารถโหลดบริษัทที่บันทึกจากฐานข้อมูล",
+  "company.loading": "กำลังโหลดบริษัทที่บันทึกจากฐานข้อมูล...",
   "company.logoPreview": "ตัวอย่างโลโก้บริษัท",
   "company.nameAppears": "ชื่อบริษัทที่บันทึกจะแสดงที่นี่",
   "company.nameRequired": "ต้องกรอกชื่อบริษัท",
@@ -434,8 +436,8 @@ const th: Record<keyof typeof en, string> = {
   "profile.defaultEmployeeName": "ชื่อพนักงานเริ่มต้น",
   "profile.defaultFormValues": "ค่าเริ่มต้นของฟอร์ม",
   "profile.formDescription": "ค่านี้จะเติมในหน้าค่าใช้จ่ายใหม่ และยังแก้ไขได้ในแต่ละรายงาน",
-  "profile.loadError": "ไม่สามารถโหลดโปรไฟล์ของคุณจาก Supabase",
-  "profile.loading": "กำลังโหลดโปรไฟล์จาก Supabase...",
+  "profile.loadError": "ไม่สามารถโหลดโปรไฟล์ของคุณจากฐานข้อมูล",
+  "profile.loading": "กำลังโหลดโปรไฟล์จากฐานข้อมูล...",
   "profile.nameFallback": "จะใช้ชื่อจากอีเมลของคุณแทน",
   "profile.profileIssue": "ปัญหาโปรไฟล์",
   "profile.profileSaved": "บันทึกโปรไฟล์แล้ว",
@@ -478,6 +480,20 @@ function readStoredLocale(): Locale {
   return window.localStorage.getItem(I18N_STORAGE_KEY) === "th" ? "th" : "en";
 }
 
+function readServerLocale(): Locale {
+  return "en";
+}
+
+function subscribeLocaleChange(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(I18N_STORAGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(I18N_STORAGE_EVENT, onStoreChange);
+  };
+}
+
 function interpolate(template: string, values?: TranslationValues) {
   if (!values) {
     return template;
@@ -490,20 +506,24 @@ function interpolate(template: string, values?: TranslationValues) {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => readStoredLocale());
+  const locale = useSyncExternalStore(subscribeLocaleChange, readStoredLocale, readServerLocale);
 
   useEffect(() => {
     document.documentElement.lang = locale;
-    window.localStorage.setItem(I18N_STORAGE_KEY, locale);
   }, [locale]);
+
+  const setLocale = useCallback((nextLocale: Locale) => {
+    window.localStorage.setItem(I18N_STORAGE_KEY, nextLocale);
+    window.dispatchEvent(new Event(I18N_STORAGE_EVENT));
+  }, []);
 
   const value = useMemo<I18nContextValue>(
     () => ({
       locale,
-      setLocale: setLocaleState,
+      setLocale,
       t: (key, values) => interpolate(dictionaries[locale][key], values),
     }),
-    [locale],
+    [locale, setLocale],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

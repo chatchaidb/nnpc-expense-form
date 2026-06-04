@@ -27,7 +27,7 @@ import {
 } from "@/lib/admin-data";
 import { formatCurrency } from "@/lib/expense-data";
 import { useI18n } from "@/lib/i18n";
-import { SESSION_EXPIRED_MESSAGE } from "@/lib/supabase-api";
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/api-client";
 import { type UserAccount } from "@/lib/user-account-data";
 
 type AdminMessage = {
