@@ -38,7 +38,7 @@ export default nextConfig;
 ```env
 # Database connection (SQL Server)
 # Format: sqlserver://<host>:<port>;database=<db>;user=<user>;password=<pass>;trustServerCertificate=true
-DATABASE_URL="sqlserver://192.168.0.207:1434;database=nnpcexpenseDB;user=nnpc;password=YOUR_PASSWORD;trustServerCertificate=true"
+DATABASE_URL="sqlserver://ip;database=nnpcexpenseDB;user=nnpc;password=YOUR_PASSWORD;trustServerCertificate=true"
 
 # Auth secret for better-auth session encryption
 # Generate with: openssl rand -hex 32
