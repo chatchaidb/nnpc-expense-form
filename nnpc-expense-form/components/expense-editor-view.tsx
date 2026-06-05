@@ -18,34 +18,25 @@ import {
   CloudCheck,
   CloudUpload,
   Download,
-  FileText,
-  Globe2,
-  Hash,
   ImagePlus,
   LoaderCircle,
-  LogOut,
-  NotebookPen,
   Plus,
   Printer,
   Receipt,
   Sparkles,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
 import {
   MobileExpenseBottomDock,
   MobileExpenseWorkflowSummary,
-} from "@/components/mobile/expense-mobile-workflow";
+} from "@/components/mobile/expense-editor/mobile-expense-workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -75,8 +66,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { TopRouteTabs } from "@/components/top-route-tabs";
-import { type UserAccount } from "@/lib/user-account-data";
 import {
   clearExpenseDraftCache,
   readExpenseDraftCache,
@@ -168,7 +157,7 @@ const EXPORT_COPY: Record<
     formTitle: "Expense reimbursement form",
     formSubtitle: "",
     companyCaption: "Company",
-    companyPending: "Select a company in Company Headers",
+    companyPending: "Select a company in Company details",
     companyTaxId: "Company Tax ID",
     department: "Department",
     date: "Date",
@@ -193,7 +182,7 @@ const EXPORT_COPY: Record<
     formTitle: "ใบเบิกค่าใช้จ่าย",
     formSubtitle: "",
     companyCaption: "บริษัท",
-    companyPending: "กรุณาเลือกบริษัทจากแท็บ Company Headers",
+    companyPending: "กรุณาเลือกบริษัทจากแท็บข้อมูลบริษัท",
     companyTaxId: "เลขประจำตัวผู้เสียภาษี",
     department: "แผนก",
     date: "วันที่",
@@ -341,9 +330,8 @@ export default function ExpenseEditorView({
 }) {
   return (
     <AuthGate>
-      {({ account, session, logout }) => (
+      {({ session, logout }) => (
         <ProtectedExpenseEditor
-          account={account}
           expenseDate={expenseDate}
           logout={logout}
           session={session}
@@ -1901,12 +1889,10 @@ function MobileExportPreviewPageCard({
 }
 
 function ProtectedExpenseEditor({
-  account,
   expenseDate,
   logout,
   session,
 }: {
-  account: UserAccount;
   expenseDate: string;
   logout: () => Promise<void>;
   session: AuthSession;
@@ -1937,6 +1923,7 @@ function ProtectedExpenseEditor({
   const [exportFeedbackMessage, setExportFeedbackMessage] = useState<string | null>(null);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [isExportPreviewOpen, setIsExportPreviewOpen] = useState(false);
+  const [isFormDetailsOpen, setIsFormDetailsOpen] = useState(false);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState(false);
   const [isMobileExportPreview, setIsMobileExportPreview] = useState(false);
@@ -2570,10 +2557,10 @@ function ProtectedExpenseEditor({
   const exportValidationMessage =
     !selectedCompanyName.trim()
       ? companies.length === 0 && !hasStoredCompanySnapshot
-        ? "Add a company profile with a logo in Company Headers before exporting."
+        ? "Add a company profile with a logo in Company details before exporting."
         : "Select a company profile before exporting."
       : !selectedCompanyLogoUrl
-        ? "The selected company profile is missing a logo. Update it in Company Headers before exporting."
+        ? "The selected company profile is missing a logo. Update it in Company details before exporting."
         : null;
   const canExport = exportValidationMessage === null;
   const jumpToMobileSection = (sectionId: string) => {
@@ -3130,131 +3117,101 @@ function ProtectedExpenseEditor({
   }
 
   return (
-    <div className="page-shell min-h-screen pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:pb-0">
-      <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-8">
+    <div className="page-shell min-h-screen overflow-x-hidden pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="w-full px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-7">
         <section className="screen-only">
-          <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
-            <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:gap-6 sm:px-6 sm:py-6">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      className="rounded-full border-white/10 bg-white/5 px-3 py-1 text-[0.66rem] uppercase tracking-[0.22em] text-primary sm:px-4 sm:text-[0.7rem] sm:tracking-[0.28em]"
-                      variant="outline"
-                    >
-                      Daily expenses
-                    </Badge>
-                    <Badge className="rounded-full px-3 py-1" variant="secondary">
-                      {expenseDate}
-                    </Badge>
-                    <Badge className="rounded-full px-3 py-1" variant="outline">
-                      {displayExpenseReference}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-2 sm:space-y-3">
-                    <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-muted-foreground sm:text-xs sm:tracking-[0.3em]">
-                      Simple reimbursement page
-                    </p>
-                    <CardTitle className="font-serif text-[2rem] leading-[1.05] tracking-[-0.03em] sm:text-5xl">
-                      {formatDisplayDate(expenseDate)}
-                    </CardTitle>
-                    <CardDescription className="max-w-3xl text-sm leading-6 sm:text-base sm:leading-7">
-                      Add each expense for this day, attach one or more receipt photos,
-                      then export a clean PDF with extra receipt pages.
-                    </CardDescription>
-                  </div>
+          <header className="-mx-3 overflow-hidden border-b border-border/70 bg-background/60 px-3 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 sm:py-5 lg:-mx-8 lg:px-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="max-w-full rounded-full px-3 py-1" variant="secondary">
+                    Expense day
+                  </Badge>
+                  <Badge
+                    className="max-w-full truncate rounded-full px-3 py-1 font-mono text-xs sm:text-sm"
+                    variant="outline"
+                  >
+                    {displayExpenseReference}
+                  </Badge>
+                  <Badge className="max-w-full rounded-full px-3 py-1" variant="outline">
+                    Autosaves
+                  </Badge>
                 </div>
 
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                  <ThemeSettingsSheet userEmail={session.userEmail} />
-                  {!isMobileLayout ? (
-                    <Button
-                      className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
-                      disabled={isExportBusy || !canExport}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        void handlePreviewExport();
-                      }}
-                    >
-                      {isExportBusy ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Printer className="size-4" />
-                      )}
-                      {isExportBusy
-                        ? isSavingPdf
-                          ? "Saving PDF..."
-                          : "Preparing export..."
-                        : "Export PDF"}
-                    </Button>
-                  ) : null}
+                <div className="space-y-1">
+                  <h1 className="text-[2rem] font-semibold leading-tight tracking-[-0.04em] text-foreground sm:text-5xl">
+                    {formatDisplayDate(expenseDate)}
+                  </h1>
+                  <p className="max-w-full text-sm leading-6 text-muted-foreground sm:max-w-3xl sm:text-base sm:leading-7">
+                    Add expense rows, attach receipts, then export the PDF.
+                  </p>
+                </div>
+
+                <div className="flex max-w-full flex-wrap gap-2 text-sm text-muted-foreground">
+                  <span className="rounded-full bg-card/80 px-3 py-1">
+                    {populatedRows.length} filled row{populatedRows.length === 1 ? "" : "s"}
+                  </span>
+                  <span className="rounded-full bg-card/80 px-3 py-1">
+                    {totalReceipts} receipt{totalReceipts === 1 ? "" : "s"}
+                  </span>
+                  <span className="rounded-full bg-card/80 px-3 py-1">
+                    {formatCurrency(totalAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid w-full grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:w-auto sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
+                <Button
+                  asChild
+                  className="w-full rounded-full border-border/75 bg-card/75 px-4 shadow-none backdrop-blur-xl hover:bg-card sm:w-auto"
+                  size="sm"
+                  variant="outline"
+                >
+                  <Link href="/dashboard">Back to Dashboard</Link>
+                </Button>
+                <Button
+                  className={`w-full rounded-full border-border/75 bg-card/75 px-4 shadow-none backdrop-blur-xl hover:bg-card sm:w-auto ${
+                    exportValidationMessage ? "border-destructive/35 bg-destructive/10" : ""
+                  }`}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsFormDetailsOpen(true)}
+                >
+                  <Building2 className="size-4" />
+                  <span className="sm:hidden">Details</span>
+                  <span className="hidden sm:inline">Form details</span>
+                </Button>
+                <ThemeSettingsSheet
+                  className="w-full justify-center border-border/75 bg-card/75 hover:bg-card sm:w-auto"
+                  userEmail={session.userEmail}
+                />
+                {!isMobileLayout ? (
                   <Button
-                    className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
+                    className="w-full rounded-full border-border/75 bg-card/75 px-4 shadow-none backdrop-blur-xl hover:bg-card sm:w-auto"
+                    disabled={isExportBusy || !canExport}
                     size="sm"
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      void logout();
+                      void handlePreviewExport();
                     }}
                   >
-                    <LogOut className="size-4" />
-                    Log out
+                    {isExportBusy ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <Printer className="size-4" />
+                    )}
+                    {isExportBusy
+                      ? isSavingPdf
+                        ? "Saving PDF..."
+                        : "Preparing export..."
+                      : "Export PDF"}
                   </Button>
-                </div>
+                ) : null}
               </div>
-
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
-                  <EditorMetric
-                    label="Reference"
-                    value={displayExpenseReference}
-                    icon={<Hash className="size-4" />}
-                    valueClassName="break-all font-mono text-sm tracking-[0.05em] sm:text-[0.95rem]"
-                  />
-                  <EditorMetric
-                    label="Employee"
-                    value={printableEmployeeName}
-                    icon={<UserRound className="size-4" />}
-                  />
-                  <EditorMetric
-                    label="Rows"
-                    value={`${rows.length}`}
-                    icon={<FileText className="size-4" />}
-                  />
-                  <EditorMetric
-                    label="Receipts"
-                    value={`${totalReceipts}`}
-                    icon={<Receipt className="size-4" />}
-                  />
-                </div>
-
-                <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-center">
-                  <Button
-                    asChild
-                    className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none backdrop-blur-xl hover:bg-background/90 sm:w-auto"
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Link href="/dashboard">Back to dashboard</Link>
-                  </Button>
-                  <Button
-                    className="hidden rounded-full px-5 md:inline-flex"
-                    size="sm"
-                    type="button"
-                    onClick={addRow}
-                  >
-                    <Plus className="size-4" />
-                    Create expense
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <TopRouteTabs accountRole={account.role} activeSection="expenses" />
+            </div>
+          </header>
 
           <div className="mt-5">
             <MobileExpenseWorkflowSummary
@@ -3262,70 +3219,54 @@ function ProtectedExpenseEditor({
               companyName={selectedCompanyName}
               exportIssue={exportValidationMessage}
               filledRows={populatedRows.length}
-              onJumpToExportSetup={() => jumpToMobileSection("mobile-export-setup")}
+              onJumpToExportSetup={() => setIsFormDetailsOpen(true)}
               onJumpToRows={() => jumpToMobileSection("mobile-expense-rows")}
               receiptCount={totalReceipts}
             />
           </div>
 
-          <main className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(18rem,22rem)]">
-            <Card
-              className="premium-panel scroll-mt-5 rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]"
-              id="mobile-expense-rows"
-            >
-              <CardHeader className="gap-4 border-b border-border/60 px-4 py-4 sm:px-6 sm:py-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="space-y-2">
-                    <Badge className="rounded-full px-3 py-1" variant="secondary">
-                      Expense rows
-                    </Badge>
-                    <CardTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
-                      Daily line items
-                    </CardTitle>
-                    <CardDescription className="text-sm leading-6 sm:text-base sm:leading-7">
-                      Keep the list lightweight. Expand a row only when you need to edit
-                      the amount, remark, or receipt photos.
-                    </CardDescription>
-                  </div>
-
-                  <Button className="hidden rounded-full px-5 md:inline-flex" type="button" onClick={addRow}>
-                    <Plus className="size-4" />
-                    Add row
-                  </Button>
+          <main
+            className="-mx-3 mt-5 scroll-mt-5 border-y border-border/70 bg-card/50 sm:-mx-6 lg:-mx-8"
+            id="mobile-expense-rows"
+          >
+            <div className="px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                  <Badge className="rounded-full px-3 py-1" variant="secondary">
+                    Expense rows
+                  </Badge>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                    Line items
+                  </h2>
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+                    Add each expense, amount, note, and receipt photo for this day.
+                  </p>
                 </div>
-              </CardHeader>
 
-              <CardContent className="px-4 py-4 sm:px-6 sm:py-6">
-                {rows.length === 0 ? (
-                  <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-background/60 px-5 py-12 text-center">
-                    <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                      <Receipt className="size-6" />
-                    </div>
-                    <p className="mt-5 font-serif text-2xl text-foreground">
-                      No expense lines yet
-                    </p>
-                    <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-                      Add your first line item to record the amount, a short note, and
-                      any receipt photos for this date.
-                    </p>
+                <Button className="rounded-full px-5" type="button" onClick={addRow}>
+                  <Plus className="size-4" />
+                  Add row
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-border/60 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+              {rows.length === 0 ? (
+                <div className="rounded-[1.4rem] border border-dashed border-border/75 bg-background/60 px-5 py-12 text-center">
+                  <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                    <Receipt className="size-6" />
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="hidden rounded-[1.6rem] border border-white/10 bg-background/55 px-4 py-3 sm:block">
-                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                        <Badge className="rounded-full px-3 py-1" variant="outline">
-                          Adds multiple receipt photos
-                        </Badge>
-                        <Badge className="rounded-full px-3 py-1" variant="outline">
-                          Saves automatically
-                        </Badge>
-                        <Badge className="rounded-full px-3 py-1" variant="outline">
-                          Exports extra receipt pages
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {rows.map((row) => {
+                  <p className="mt-5 text-2xl font-semibold text-foreground">
+                    No expense lines yet
+                  </p>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted-foreground">
+                    Add your first line item to record the amount, a short note, and
+                    any receipt photos for this date.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {rows.map((row) => {
                       const rowNumber = rowNumberById.get(row.id) ?? row.id;
                       const rowReference = formatExpenseLineReferenceCode(
                         expenseDate,
@@ -3335,7 +3276,7 @@ function ProtectedExpenseEditor({
 
                       return (
                         <article
-                          className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-4 shadow-[0_18px_48px_-34px_rgba(15,23,42,0.55)]"
+                          className="rounded-[1.15rem] border border-border/70 bg-background/75 p-4 shadow-[0_12px_34px_-32px_rgba(26,57,43,0.26)] sm:rounded-[1.35rem]"
                           key={row.id}
                         >
                           <button
@@ -3357,10 +3298,10 @@ function ProtectedExpenseEditor({
                               </div>
 
                               <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                                <span className="inline-flex rounded-full border border-white/10 bg-background/70 px-3 py-1 font-mono tracking-[0.12em] text-foreground/80">
+                                <span className="inline-flex rounded-full border border-border/70 bg-card/75 px-3 py-1 font-mono tracking-[0.12em] text-foreground/80">
                                   {rowReference}
                                 </span>
-                                <span className="inline-flex rounded-full border border-dashed border-white/10 px-3 py-1">
+                                <span className="inline-flex rounded-full border border-dashed border-border/70 px-3 py-1">
                                   {row.receipts.length > 0
                                     ? "Receipts attached"
                                     : "No receipts yet"}
@@ -3376,7 +3317,7 @@ function ProtectedExpenseEditor({
                               <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground">
                                 {row.isExpanded ? "Hide details" : "Edit details"}
                               </span>
-                              <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-background/80 text-muted-foreground">
+                              <span className="flex size-10 items-center justify-center rounded-2xl border border-border/70 bg-card/80 text-muted-foreground">
                                 {row.isExpanded ? (
                                   <ChevronUp className="size-4" />
                                 ) : (
@@ -3399,10 +3340,10 @@ function ProtectedExpenseEditor({
                                       updateRow(row.id, "typeId", value)
                                     }
                                   >
-                                    <SelectTrigger className="h-11 w-full rounded-2xl border-white/10 bg-background/75 px-4">
+                                    <SelectTrigger className="h-11 w-full rounded-2xl border-border/70 bg-card/75 px-4">
                                       <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
+                                    <SelectContent className="rounded-2xl border-border/70 bg-popover/95 backdrop-blur-xl">
                                       {EXPENSE_TYPES.map((expenseType) => (
                                         <SelectItem key={expenseType.id} value={expenseType.id}>
                                           {expenseType.label}
@@ -3417,7 +3358,7 @@ function ProtectedExpenseEditor({
                                     Amount (THB)
                                   </span>
                                   <Input
-                                    className="h-11 rounded-2xl border-white/10 bg-background/75 px-4 text-right"
+                                    className="h-11 rounded-2xl border-border/70 bg-card/75 px-4 text-right"
                                     min="0"
                                     placeholder="0.00"
                                     step="0.01"
@@ -3435,7 +3376,7 @@ function ProtectedExpenseEditor({
                                   Remark
                                 </span>
                                 <Textarea
-                                  className="min-h-24 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
+                                  className="min-h-24 resize-none overflow-hidden rounded-2xl border-border/70 bg-card/75 px-4 py-3"
                                   data-auto-resize="true"
                                   maxLength={EXPENSE_REMARK_MAX_LENGTH}
                                   onInput={(event) => {
@@ -3459,11 +3400,11 @@ function ProtectedExpenseEditor({
                                 </span>
                               </label>
 
-                              <div className="rounded-[1.45rem] border border-white/10 bg-background/55 p-3">
+                              <div className="rounded-[1.15rem] border border-border/70 bg-card/60 p-3">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                                   <Button
                                     asChild
-                                    className="w-full rounded-full border-white/10 bg-background/70 px-4 shadow-none hover:bg-background/85 sm:w-auto"
+                                    className="w-full rounded-full border-border/70 bg-background/70 px-4 shadow-none hover:bg-background/85 sm:w-auto"
                                     size="sm"
                                     variant="outline"
                                   >
@@ -3528,344 +3469,24 @@ function ProtectedExpenseEditor({
                           ) : null}
                         </article>
                       );
-                    })}
+                  })}
 
-                    <div className="flex justify-center pt-1">
-                      <Button
-                        className="rounded-full border-white/10 bg-background/70 px-3 text-xs shadow-none hover:bg-background/85"
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                      >
-                        <ChevronUp className="size-3.5" />
-                        Go back to top
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-              <Card className="premium-panel rounded-[1.5rem] border-border/60 py-0 sm:rounded-[2rem]">
-                <CardHeader
-                  className="scroll-mt-5 gap-3 border-b border-border/60 px-4 py-4 sm:px-5 sm:py-5"
-                  id="mobile-export-setup"
-                >
-                  <Badge className="rounded-full px-3 py-1" variant="secondary">
-                    Export setup
-                  </Badge>
-                  <CardTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
-                    Company and form details
-                  </CardTitle>
-                  <CardDescription className="text-sm leading-7">
-                    These details appear across every exported page.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">
-                      Company for this form
-                    </span>
-                    <Select
-                      disabled={companies.length === 0 && !selectedCompanyId}
-                      value={selectedCompanyId || EMPTY_COMPANY_VALUE}
-                      onValueChange={handleCompanySelect}
-                    >
-                      <SelectTrigger className="h-11 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 text-left">
-                        <SelectValue placeholder="Select a saved company" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
-                        <SelectItem value={EMPTY_COMPANY_VALUE}>No company selected</SelectItem>
-                        {selectedCompanyId && !selectedCompany ? (
-                          <SelectItem value={selectedCompanyId}>
-                            {selectedCompanyName || "Saved company (unavailable)"}
-                          </SelectItem>
-                        ) : null}
-                        {companies.map((company) => (
-                          <SelectItem key={company.id} value={company.id}>
-                            {company.companyName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {exportValidationMessage ? (
-                      <p className="text-sm leading-6 text-destructive">
-                        {exportValidationMessage}
-                      </p>
-                    ) : (
-                      <p className="text-xs leading-6 text-muted-foreground">
-                        The selected company header appears on every exported page.
-                      </p>
-                    )}
-                  </label>
-
-                  <div className="rounded-[1.5rem] border border-white/10 bg-background/65 p-3 sm:rounded-3xl sm:p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-background/85 sm:h-16 sm:w-16 sm:rounded-3xl">
-                        {selectedCompanyLogoUrl ? (
-                          <Image
-                            alt={selectedCompanyName || "Selected company logo"}
-                            className="h-full w-full object-contain"
-                            height={128}
-                            src={selectedCompanyLogoUrl}
-                            unoptimized
-                            width={128}
-                          />
-                        ) : (
-                          <Building2 className="size-6 text-muted-foreground" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                          Company on the form
-                        </p>
-                        <p className="mt-2 break-words text-sm font-medium leading-5 text-foreground [overflow-wrap:anywhere]">
-                          {selectedCompanyName || "No company selected yet"}
-                        </p>
-                        {selectedCompanyTaxId ? (
-                          <p className="mt-1 break-all text-xs uppercase tracking-[0.08em] text-muted-foreground sm:tracking-[0.2em]">
-                            {exportCopy.companyTaxId}: {selectedCompanyTaxId}
-                          </p>
-                        ) : null}
-                        {selectedCompanyAddress ? (
-                          <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
-                            {selectedCompanyAddress}
-                          </p>
-                        ) : null}
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          The name, tax ID, address, and logo show in the PDF header.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {companies.length === 0 && !selectedCompanyId && !hasStoredCompanySnapshot ? (
-                    <div className="rounded-3xl border border-dashed border-white/10 bg-background/60 px-4 py-4 text-sm text-muted-foreground">
-                      Add a company in Company Headers before exporting. A saved logo is
-                      required for the PDF header.
-                    </div>
-                  ) : null}
-
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">
-                      Export language
-                    </span>
-                    <Select
-                      value={exportLanguage}
-                      onValueChange={(value) => {
-                        setPrintError(null);
-                        setExportLanguage(value === "th" ? "th" : "en");
-                      }}
-                    >
-                      <SelectTrigger className="h-11 rounded-2xl border-white/10 bg-background/75 px-4">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
-                        <SelectItem value="en">English export</SelectItem>
-                        <SelectItem value="th">Thai export</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </label>
-
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">Employee name</span>
-                    <Input
-                      className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                      maxLength={EMPLOYEE_NAME_MAX_LENGTH}
-                      placeholder="Who is submitting this form?"
-                      type="text"
-                      value={employeeName}
-                      onChange={(event) => {
-                        setPrintError(null);
-                        setEmployeeName(
-                          limitTextLength(event.target.value, EMPLOYEE_NAME_MAX_LENGTH),
-                        );
-                      }}
-                    />
-                    <span className="block text-right text-xs text-muted-foreground">
-                      {employeeName.length}/{EMPLOYEE_NAME_MAX_LENGTH}
-                    </span>
-                  </label>
-
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">Department</span>
-                    <Input
-                      className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                      maxLength={DEPARTMENT_MAX_LENGTH}
-                      placeholder="Which department is submitting this form?"
-                      type="text"
-                      value={department}
-                      onChange={(event) => {
-                        setPrintError(null);
-                        setDepartment(
-                          limitTextLength(event.target.value, DEPARTMENT_MAX_LENGTH),
-                        );
-                      }}
-                    />
-                    <span className="block text-right text-xs text-muted-foreground">
-                      {department.length}/{DEPARTMENT_MAX_LENGTH}
-                    </span>
-                  </label>
-
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-foreground">Note</span>
-                    <Textarea
-                      className="min-h-28 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
-                      data-auto-resize="true"
-                      maxLength={EXPORT_NOTE_MAX_LENGTH}
-                      onInput={(event) => {
-                        resizeTextareaElement(event.currentTarget);
-                      }}
-                      placeholder="Optional note for approval or context"
-                      value={note}
-                      onChange={(event) => {
-                        setPrintError(null);
-                        setNote(limitTextLength(event.target.value, EXPORT_NOTE_MAX_LENGTH));
-                      }}
-                    />
-                    <span className="block text-right text-xs text-muted-foreground">
-                      {note.length}/{EXPORT_NOTE_MAX_LENGTH}
-                    </span>
-                  </label>
-                </CardContent>
-              </Card>
-
-              <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-                <CardHeader className="gap-3 border-b border-border/60 px-5 py-5">
-                  <Badge className="rounded-full px-3 py-1" variant="secondary">
-                    Overview
-                  </Badge>
-                  <CardTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
-                    Editing overview
-                  </CardTitle>
-                  <CardDescription className="text-sm leading-7">
-                    {populatedRows.length} filled expense line
-                    {populatedRows.length === 1 ? "" : "s"} with {totalReceipts} receipt
-                    photo{totalReceipts === 1 ? "" : "s"} attached. The final total stays
-                    in the PDF export.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4 px-5 py-5">
-                  <div className={`rounded-3xl border p-4 ${editorStatus.tone}`}>
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5">{editorStatus.icon}</span>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.24em] opacity-80">
-                          Page status
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-foreground">
-                          {editorStatus.label}
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-foreground/80">
-                          {editorStatus.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-background/65 p-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                      Export status
-                    </p>
-                    <p className="mt-2 text-sm text-foreground">
-                      {isPreparingPrint
-                        ? "Preparing your receipt photos for PDF..."
-                        : isSavingPdf
-                          ? "Sending the PDF to your browser..."
-                        : lastPrintedAt
-                          ? `Last exported ${lastPrintedAt}`
-                          : "No PDF exported yet"}
-                    </p>
-                    {printError ? (
-                      <p className="mt-2 text-sm leading-6 text-destructive">{printError}</p>
-                    ) : exportFeedbackMessage ? (
-                      <p className="mt-2 text-sm leading-6 text-primary">
-                        {exportFeedbackMessage}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-background/65 p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5 text-primary">
-                        <Globe2 className="size-4" />
-                      </span>
-                      <p className="text-sm leading-7 text-foreground">
-                        The PDF fits up to five expense lines per page, keeps the same
-                        layout on continuation pages, and adds up to four receipt photos
-                        on each extra page.
-                      </p>
-                    </div>
-                  </div>
-
-                  {isMobileLayout ? (
+                  <div className="flex justify-center pt-1">
                     <Button
-                      className="h-11 w-full rounded-2xl"
-                      disabled={isExportBusy || !canExport}
+                      className="rounded-full border-border/70 bg-background/70 px-3 text-xs shadow-none hover:bg-background/85"
+                      size="sm"
                       type="button"
+                      variant="outline"
                       onClick={() => {
-                        void handleDirectMobileExport();
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
-                      {isExportBusy ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                      {isExportBusy
-                        ? isSavingPdf
-                          ? "Downloading PDF..."
-                          : "Preparing your export..."
-                        : "Download PDF"}
+                      <ChevronUp className="size-3.5" />
+                      Go back to top
                     </Button>
-                  ) : (
-                    <Button
-                      className="h-11 w-full rounded-2xl"
-                      disabled={isExportBusy || !canExport}
-                      type="button"
-                      onClick={() => {
-                        void handlePreviewExport();
-                      }}
-                    >
-                      {isExportBusy ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Printer className="size-4" />
-                      )}
-                      {isExportBusy
-                        ? isSavingPdf
-                          ? "Saving PDF..."
-                          : "Preparing your export..."
-                        : "Export this day sheet"}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-[2rem] border-border/60 bg-background/65 py-0">
-                <CardContent className="px-5 py-5">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                      <NotebookPen className="size-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Tip for a cleaner PDF
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Keep each note short and clear so the form stays easy to review.
-                      </p>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </div>
           </main>
         </section>
@@ -3876,12 +3497,247 @@ function ProtectedExpenseEditor({
           filledRows={populatedRows.length}
           isExportBusy={isExportBusy}
           isSavingPdf={isSavingPdf}
+          needsDetails={Boolean(exportValidationMessage)}
           onAddRow={addRow}
+          onOpenDetails={() => setIsFormDetailsOpen(true)}
           onExport={() => {
             void handleDirectMobileExport();
           }}
           totalAmountLabel={formatCurrency(totalAmount)}
         />
+
+        <Dialog open={isFormDetailsOpen} onOpenChange={setIsFormDetailsOpen}>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[1.75rem] border-border/60 p-0 sm:max-w-2xl">
+            <DialogHeader className="border-b border-border/60 px-5 py-5 sm:px-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full px-3 py-1" variant="secondary">
+                  Form details
+                </Badge>
+                {exportValidationMessage ? (
+                  <Badge className="rounded-full border-destructive/30 bg-destructive/10 px-3 py-1 text-destructive">
+                    Needs attention
+                  </Badge>
+                ) : (
+                  <Badge className="rounded-full px-3 py-1" variant="outline">
+                    Ready
+                  </Badge>
+                )}
+              </div>
+              <DialogTitle className="font-serif text-2xl tracking-tight sm:text-3xl">
+                Details for this expense form
+              </DialogTitle>
+              <DialogDescription className="text-sm leading-6">
+                Company, employee, language, and note details used in the PDF export.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5 px-5 py-5 sm:px-6">
+              <section className="space-y-3">
+                <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/65 p-3">
+                  <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-background">
+                    {selectedCompanyLogoUrl ? (
+                      <Image
+                        alt={selectedCompanyName || "Selected company logo"}
+                        className="h-full w-full object-contain"
+                        height={96}
+                        src={selectedCompanyLogoUrl}
+                        unoptimized
+                        width={96}
+                      />
+                    ) : (
+                      <Building2 className="size-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      Company
+                    </p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {selectedCompanyName || "No company selected"}
+                    </p>
+                    {selectedCompanyTaxId ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {exportCopy.companyTaxId}: {selectedCompanyTaxId}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Company for this form
+                  </span>
+                  <Select
+                    disabled={companies.length === 0 && !selectedCompanyId}
+                    value={selectedCompanyId || EMPTY_COMPANY_VALUE}
+                    onValueChange={handleCompanySelect}
+                  >
+                    <SelectTrigger className="h-11 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 text-left">
+                      <SelectValue placeholder="Select company" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
+                      <SelectItem value={EMPTY_COMPANY_VALUE}>No company selected</SelectItem>
+                      {selectedCompanyId && !selectedCompany ? (
+                        <SelectItem value={selectedCompanyId}>
+                          {selectedCompanyName || "Saved company (unavailable)"}
+                        </SelectItem>
+                      ) : null}
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.companyName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+
+                {exportValidationMessage ? (
+                  <p className="text-sm leading-6 text-destructive">
+                    {exportValidationMessage}
+                  </p>
+                ) : null}
+
+                {companies.length === 0 && !selectedCompanyId && !hasStoredCompanySnapshot ? (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 px-3 py-3 text-sm text-muted-foreground">
+                    Add a company in Company details before exporting.
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="grid gap-4 border-t border-border/60 pt-5 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">Employee name</span>
+                  <Input
+                    className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                    maxLength={EMPLOYEE_NAME_MAX_LENGTH}
+                    placeholder="Who is submitting this form?"
+                    type="text"
+                    value={employeeName}
+                    onChange={(event) => {
+                      setPrintError(null);
+                      setEmployeeName(
+                        limitTextLength(event.target.value, EMPLOYEE_NAME_MAX_LENGTH),
+                      );
+                    }}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Department for this form
+                  </span>
+                  <Input
+                    className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                    maxLength={DEPARTMENT_MAX_LENGTH}
+                    placeholder="Department name"
+                    type="text"
+                    value={department}
+                    onChange={(event) => {
+                      setPrintError(null);
+                      setDepartment(limitTextLength(event.target.value, DEPARTMENT_MAX_LENGTH));
+                    }}
+                  />
+                </label>
+                <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">
+                  These values are saved for this expense form only.
+                </p>
+              </section>
+
+              <section className="grid gap-4 border-t border-border/60 pt-5 sm:grid-cols-[14rem_minmax(0,1fr)]">
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">Export language</span>
+                  <Select
+                    value={exportLanguage}
+                    onValueChange={(value) => {
+                      setPrintError(null);
+                      setExportLanguage(value === "th" ? "th" : "en");
+                    }}
+                  >
+                    <SelectTrigger className="h-11 rounded-2xl border-white/10 bg-background/75 px-4">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-white/10 bg-popover/95 backdrop-blur-xl">
+                      <SelectItem value="en">English export</SelectItem>
+                      <SelectItem value="th">Thai export</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-foreground">Note</span>
+                  <Textarea
+                    className="min-h-24 resize-none overflow-hidden rounded-2xl border-white/10 bg-background/75 px-4 py-3"
+                    data-auto-resize="true"
+                    maxLength={EXPORT_NOTE_MAX_LENGTH}
+                    onInput={(event) => {
+                      resizeTextareaElement(event.currentTarget);
+                    }}
+                    placeholder="Optional note"
+                    value={note}
+                    onChange={(event) => {
+                      setPrintError(null);
+                      setNote(limitTextLength(event.target.value, EXPORT_NOTE_MAX_LENGTH));
+                    }}
+                  />
+                </label>
+              </section>
+
+              <section className="grid gap-3 border-t border-border/60 pt-5 sm:grid-cols-2">
+                <div className={`rounded-2xl border p-3 ${editorStatus.tone}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5">{editorStatus.icon}</span>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {canExport ? "Ready to export" : editorStatus.label}
+                      </p>
+                      <p className="mt-1 text-sm leading-5 text-foreground/80">
+                        {canExport
+                          ? `${populatedRows.length} filled row${
+                              populatedRows.length === 1 ? "" : "s"
+                            }, ${totalReceipts} receipt${
+                              totalReceipts === 1 ? "" : "s"
+                            } attached.`
+                          : editorStatus.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/70 bg-background/65 p-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Export status
+                  </p>
+                  <p className="mt-1 text-sm text-foreground">
+                    {isPreparingPrint
+                      ? "Preparing receipt photos..."
+                      : isSavingPdf
+                        ? "Sending PDF..."
+                        : lastPrintedAt
+                          ? `Last exported ${lastPrintedAt}`
+                          : "No PDF exported yet"}
+                  </p>
+                  {printError ? (
+                    <p className="mt-2 text-sm leading-6 text-destructive">{printError}</p>
+                  ) : exportFeedbackMessage ? (
+                    <p className="mt-2 text-sm leading-6 text-primary">
+                      {exportFeedbackMessage}
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+
+            <DialogFooter className="border-t border-border/60 bg-background/80 px-5 py-4 sm:px-6">
+              <Button
+                className="w-full rounded-full sm:w-auto"
+                type="button"
+                onClick={() => setIsFormDetailsOpen(false)}
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={!isMobileLayout && isExportPreviewOpen}
@@ -4500,34 +4356,6 @@ function LoadingExpenseDayState() {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function EditorMetric({
-  label,
-  value,
-  icon,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  icon: ReactNode;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-background/65 p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-        <span className="text-primary">{icon}</span>
-        {label}
-      </div>
-      <p
-        className={`mt-3 text-base font-semibold text-foreground ${
-          valueClassName ?? "truncate"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
   );
 }
 

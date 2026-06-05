@@ -1,26 +1,28 @@
 import type { Metadata } from "next";
-import { Sarabun, Taviraj } from "next/font/google";
+import { Noto_Sans_Thai, Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
-const sarabun = Sarabun({
-  variable: "--font-sarabun",
-  subsets: ["latin", "thai"],
+const workSans = Work_Sans({
+  display: "swap",
+  variable: "--font-work-sans",
+  subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const taviraj = Taviraj({
-  variable: "--font-taviraj",
-  subsets: ["latin", "thai"],
-  weight: ["400", "500", "600", "700"],
+const notoSansThai = Noto_Sans_Thai({
+  display: "swap",
+  variable: "--font-noto-sans-thai",
+  subsets: ["thai"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "NNPC Daily Expense",
+  title: "NNPC Expense Form",
   description:
-    "Minimal one-day expense reimbursement prototype backed by Next.js, Better Auth, and SQL Server.",
+    "Internal NNPC expense form for daily reimbursement claims.",
 };
 
 export default function RootLayout({
@@ -30,10 +32,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${sarabun.variable} ${taviraj.variable} antialiased`}>
+      <body className={`${workSans.variable} ${notoSansThai.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="light"
           disableTransitionOnChange
           enableSystem={false}
         >

@@ -67,20 +67,21 @@ const en = {
   "common.update": "Update",
   "common.user": "User",
   "nav.admin": "Admin",
-  "nav.companies": "Company Headers",
-  "nav.expenseInsight": "Expenses Insight",
-  "nav.expenses": "Expenses",
+  "nav.companies": "Company details",
+  "nav.expenseInsight": "Reports",
+  "nav.expenses": "My Expenses",
   "nav.primary": "Primary",
-  "nav.profile": "Profile",
+  "nav.profile": "My profile",
   "nav.setup": "Setup",
-  "nav.userManagement": "User Management",
+  "nav.userManagement": "Manage users",
   "nav.workspace": "Workspace",
   "settings.brandPalette": "Brand palette",
   "settings.cleanReviewMode": "Clean review mode",
   "settings.dark": "Dark",
+  "settings.darkScreenMode": "Darker screen",
   "settings.defaultStartupMode": "Default startup mode",
   "settings.description":
-    "Dark mode starts by default. Use the theme switch to move between the black, white, and green brand palette.",
+    "Light mode is the default corporate view. Use the theme switch only when you prefer a darker screen.",
   "settings.displaySettings": "Display settings",
   "settings.languageDescription":
     "Choose the interface language for navigation, forms, and system messages.",
@@ -89,7 +90,7 @@ const en = {
   "settings.sessionDescription": "This prototype stores reports and assets in SQL Server.",
   "settings.signInSession": "Sign in to load a user session.",
   "settings.themeDescription":
-    "Toggle the interface between a dark executive canvas and a bright review mode.",
+    "Toggle the interface between the standard light workspace and a darker view.",
   "settings.themeMode": "Theme mode",
   "settings.workspaceControls": "Workspace controls",
   "auth.accessDenied.description":
@@ -100,46 +101,34 @@ const en = {
   "auth.accessDisabled.title": "Access disabled",
   "auth.accessWorkflow": "Access workflow",
   "auth.accessWorkflowDescription":
-    "New signups are created immediately in Better Auth, but app access stays pending until an admin approves the account in user management.",
+    "New account requests stay pending until an admin approves them.",
   "auth.accountCreated":
-    "Account created. Access stays pending until an admin approves you.",
+    "Access request sent. An admin must approve your account before you can use the app.",
   "auth.accountCreatedConfirm":
     "Account created. If email confirmation is enabled, confirm your email first, then log in.",
   "auth.accountLoadError": "Your account status could not be loaded.",
   "auth.accountUnavailable.description":
     "Your account status could not be resolved. Try again once the account record is available.",
   "auth.accountUnavailable.title": "Account unavailable",
-  "auth.authIssue": "Authentication issue",
+  "auth.accountStatusCheckError":
+    "We could not check your account status. Please wait a moment, then try again.",
+  "auth.authIssue": "Sign-in problem",
   "auth.awaitingApproval.description":
     "Your account is signed in, but access stays blocked until an admin approves it.",
   "auth.awaitingApproval.title": "Awaiting approval",
   "auth.confirmNewPassword": "Confirm new password",
-  "auth.createAccount": "Create account",
+  "auth.createAccount": "Request account",
   "auth.createWorkspace": "Create your workspace",
   "auth.emailAndPasswordRequired": "Email and password are required.",
   "auth.emailConfirmed":
     "Email confirmed. Access stays pending until an admin approves your account.",
-  "auth.featureDashboard.description":
-    "Track dates and totals without clutter, then open detail only when needed.",
-  "auth.featureDashboard.title": "Concise dashboard",
-  "auth.featureReceipt.description":
-    "Attach image receipts per row and sync them to the internal database.",
-  "auth.featureReceipt.title": "Receipt workflow",
-  "auth.featureSecure.description":
-    "Email and password auth is handled by Better Auth.",
-  "auth.featureSecure.title": "Secure entry",
-  "auth.featureTheme.description":
-    "Dark mode is the default canvas, with a light mode toggle in Settings.",
-  "auth.featureTheme.title": "Theme control",
+  "auth.alreadyApproved": "Already approved?",
+  "auth.developedBy": "Developed by NNPC AI",
   "auth.forgotPassword": "Reset Password",
-  "auth.heroEyebrow": "Authenticated daily reimbursements",
-  "auth.heroTitle":
-    "A cleaner way to move from totals to the full expense breakdown.",
-  "auth.heroDescription":
-    "Sign in, select a date from the dashboard, and manage all receipts and remarks in a focused single-day editor.",
   "auth.initializing": "Initializing",
   "auth.loadingSecureWorkspace": "Loading secure workspace",
   "auth.login": "Log in",
+  "auth.loginDescription": "Use your approved company account to open the expense form.",
   "auth.loginSucceededNoToken": "Login succeeded but no session token was returned.",
   "auth.missingRecoveryLink":
     "The recovery link is missing. Request a new password reset email.",
@@ -151,14 +140,19 @@ const en = {
     "Password reset email sent. Open the link from your inbox to choose a new password.",
   "auth.passwordsDoNotMatch": "The password confirmation does not match.",
   "auth.passwordUpdated": "Password updated. Log in with your new password.",
+  "auth.passwordPlaceholder": "At least 8 characters",
   "auth.preparingWorkspace":
     "Preparing the expense console and restoring your access state.",
+  "auth.productTitle": "Expense Form",
   "auth.recoveryDescription":
     "Save a new password here, then log back in.",
   "auth.recoveryInvalid":
     "The recovery link is invalid or expired. Request a new password reset email.",
   "auth.recoveryPrompt": "Choose a new password to finish resetting your account.",
   "auth.refreshStatus": "Refresh status",
+  "auth.requestAccess": "Request access",
+  "auth.requestAccessDescription":
+    "Create an account request. You can use the app after an admin approves it.",
   "auth.requestSupabaseError":
     "The request could not reach the app database. Check your database URL and network access.",
   "auth.resetDescription":
@@ -175,14 +169,24 @@ const en = {
   "auth.sending": "Sending...",
   "auth.sessionExpired": "Your session expired. Log in again.",
   "auth.setNewPassword": "Set a new password",
-  "auth.signup": "Sign up",
+  "auth.signup": "Request access",
   "auth.supabaseAuthOnly":
     "Email/password authentication only. New accounts enter a pending approval queue before they can use the app.",
+  "auth.needAccess": "Need access?",
   "auth.useEightChars": "Use at least 8 characters for the new password.",
   "auth.working": "Working...",
-  "dashboard.errorLoadSummaries": "Expense summaries could not be loaded from the database.",
-  "dashboard.loadingReports": "Loading reports from the database...",
-  "dashboard.noSavedDates": "No saved dates.",
+  "dashboard.createForDate": "Create expense for this date",
+  "dashboard.description": "Create, view, and edit your daily expense claims.",
+  "dashboard.errorLoadSummaries":
+    "We could not load your expense list. Please try again, or contact your admin if this keeps happening.",
+  "dashboard.expenseDate": "Expense date",
+  "dashboard.loadingReports": "Loading your expenses...",
+  "dashboard.noSavedDates": "No expenses saved yet.",
+  "dashboard.noSavedDatesDescription":
+    "Choose a date above and create your first expense form.",
+  "dashboard.openForDate": "Open expense for this date",
+  "dashboard.recentExpenses": "Recent expenses",
+  "dashboard.title": "My Expenses",
   "company.addCompany": "Add company",
   "company.companyCouldNotSave": "The company could not be saved to the database.",
   "company.companyCouldNotUpdate": "The company could not be updated in the database.",
@@ -291,27 +295,28 @@ const th: Record<keyof typeof en, string> = {
   "common.update": "อัปเดต",
   "common.user": "ผู้ใช้",
   "nav.admin": "ผู้ดูแล",
-  "nav.companies": "หัวบริษัท",
-  "nav.expenseInsight": "ภาพรวมค่าใช้จ่าย",
-  "nav.expenses": "ค่าใช้จ่าย",
+  "nav.companies": "ข้อมูลบริษัท",
+  "nav.expenseInsight": "รายงาน",
+  "nav.expenses": "ค่าใช้จ่ายของฉัน",
   "nav.primary": "หลัก",
-  "nav.profile": "โปรไฟล์",
+  "nav.profile": "โปรไฟล์ของฉัน",
   "nav.setup": "ตั้งค่า",
   "nav.userManagement": "จัดการผู้ใช้",
   "nav.workspace": "พื้นที่ทำงาน",
   "settings.brandPalette": "พาเลตแบรนด์",
   "settings.cleanReviewMode": "โหมดตรวจทานสว่าง",
   "settings.dark": "มืด",
+  "settings.darkScreenMode": "หน้าจอมืดกว่า",
   "settings.defaultStartupMode": "โหมดเริ่มต้น",
   "settings.description":
-    "ค่าเริ่มต้นเป็นโหมดมืด ใช้สวิตช์ธีมเพื่อสลับระหว่างพาเลตสีดำ ขาว และเขียวของแบรนด์",
+    "ค่าเริ่มต้นเป็นโหมดสว่างสำหรับงานองค์กร ใช้สวิตช์ธีมเมื่อคุณต้องการหน้าจอที่มืดกว่า",
   "settings.displaySettings": "ตั้งค่าการแสดงผล",
   "settings.languageDescription": "เลือกภาษาของเมนู แบบฟอร์ม และข้อความระบบ",
   "settings.light": "สว่าง",
   "settings.session": "เซสชัน",
   "settings.sessionDescription": "ต้นแบบนี้จัดเก็บรายงานและไฟล์ใน SQL Server",
   "settings.signInSession": "เข้าสู่ระบบเพื่อโหลดเซสชันผู้ใช้",
-  "settings.themeDescription": "สลับอินเทอร์เฟซระหว่างพื้นหลังมืดและโหมดตรวจทานสว่าง",
+  "settings.themeDescription": "สลับอินเทอร์เฟซระหว่างพื้นที่ทำงานโหมดสว่างและมุมมองที่มืดกว่า",
   "settings.themeMode": "โหมดธีม",
   "settings.workspaceControls": "การควบคุมพื้นที่ทำงาน",
   "auth.accessDenied.description":
@@ -321,42 +326,33 @@ const th: Record<keyof typeof en, string> = {
   "auth.accessDisabled.title": "การเข้าถึงถูกปิด",
   "auth.accessWorkflow": "ขั้นตอนการเข้าถึง",
   "auth.accessWorkflowDescription":
-    "บัญชีใหม่จะถูกสร้างใน Better Auth ทันที แต่สิทธิ์เข้าแอปจะรอจนกว่าผู้ดูแลอนุมัติในหน้าจัดการผู้ใช้",
-  "auth.accountCreated": "สร้างบัญชีแล้ว สิทธิ์เข้าใช้งานจะรอจนกว่าผู้ดูแลอนุมัติ",
+    "คำขอบัญชีใหม่จะรอจนกว่าผู้ดูแลอนุมัติ",
+  "auth.accountCreated":
+    "ส่งคำขอเข้าใช้งานแล้ว ผู้ดูแลต้องอนุมัติบัญชีก่อนจึงจะใช้แอปได้",
   "auth.accountCreatedConfirm":
     "สร้างบัญชีแล้ว หากเปิดยืนยันอีเมล ให้ยืนยันอีเมลก่อนแล้วค่อยเข้าสู่ระบบ",
   "auth.accountLoadError": "ไม่สามารถโหลดสถานะบัญชีของคุณ",
   "auth.accountUnavailable.description":
     "ไม่สามารถตรวจสอบสถานะบัญชีได้ ลองอีกครั้งเมื่อมีข้อมูลบัญชีพร้อมใช้งาน",
   "auth.accountUnavailable.title": "บัญชีไม่พร้อมใช้งาน",
-  "auth.authIssue": "ปัญหาการยืนยันตัวตน",
+  "auth.accountStatusCheckError":
+    "ยังตรวจสอบสถานะบัญชีไม่ได้ โปรดรอสักครู่แล้วลองอีกครั้ง",
+  "auth.authIssue": "ปัญหาการเข้าสู่ระบบ",
   "auth.awaitingApproval.description":
     "บัญชีของคุณเข้าสู่ระบบแล้ว แต่ยังถูกบล็อกจนกว่าผู้ดูแลจะอนุมัติ",
   "auth.awaitingApproval.title": "รอการอนุมัติ",
   "auth.confirmNewPassword": "ยืนยันรหัสผ่านใหม่",
-  "auth.createAccount": "สร้างบัญชี",
+  "auth.createAccount": "ขอบัญชี",
   "auth.createWorkspace": "สร้างพื้นที่ทำงาน",
   "auth.emailAndPasswordRequired": "ต้องกรอกอีเมลและรหัสผ่าน",
   "auth.emailConfirmed": "ยืนยันอีเมลแล้ว สิทธิ์เข้าใช้งานยังรอให้ผู้ดูแลอนุมัติ",
-  "auth.featureDashboard.description":
-    "ติดตามวันที่และยอดรวมแบบไม่รก แล้วเปิดรายละเอียดเมื่อจำเป็น",
-  "auth.featureDashboard.title": "แดชบอร์ดกระชับ",
-  "auth.featureReceipt.description":
-    "แนบรูปใบเสร็จในแต่ละรายการและซิงก์ไปยังฐานข้อมูลภายใน",
-  "auth.featureReceipt.title": "ขั้นตอนใบเสร็จ",
-  "auth.featureSecure.description":
-    "ระบบอีเมลและรหัสผ่านจัดการด้วย Better Auth",
-  "auth.featureSecure.title": "เข้าใช้งานปลอดภัย",
-  "auth.featureTheme.description": "ค่าเริ่มต้นเป็นโหมดมืด พร้อมสวิตช์โหมดสว่างในตั้งค่า",
-  "auth.featureTheme.title": "ควบคุมธีม",
+  "auth.alreadyApproved": "ได้รับอนุมัติแล้ว?",
+  "auth.developedBy": "พัฒนาโดย NNPC AI",
   "auth.forgotPassword": "รีเซ็ตรหัสผ่าน",
-  "auth.heroEyebrow": "เบิกค่าใช้จ่ายรายวันแบบยืนยันตัวตน",
-  "auth.heroTitle": "วิธีที่เรียบง่ายกว่าในการไปจากยอดรวมสู่รายละเอียดค่าใช้จ่ายครบถ้วน",
-  "auth.heroDescription":
-    "เข้าสู่ระบบ เลือกวันที่จากแดชบอร์ด แล้วจัดการใบเสร็จและหมายเหตุทั้งหมดในหน้ารายวัน",
   "auth.initializing": "กำลังเริ่มต้น",
   "auth.loadingSecureWorkspace": "กำลังโหลดพื้นที่ทำงานที่ปลอดภัย",
   "auth.login": "เข้าสู่ระบบ",
+  "auth.loginDescription": "ใช้บัญชีบริษัทที่ได้รับอนุมัติเพื่อเปิดฟอร์มค่าใช้จ่าย",
   "auth.loginSucceededNoToken": "เข้าสู่ระบบสำเร็จ แต่ไม่ได้รับโทเคนเซสชัน",
   "auth.missingRecoveryLink": "ไม่พบลิงก์กู้คืน โปรดขออีเมลรีเซ็ตรหัสผ่านใหม่",
   "auth.missingSupabase": "ไม่มี database URL ใน .env.local",
@@ -367,12 +363,17 @@ const th: Record<keyof typeof en, string> = {
     "ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว เปิดลิงก์ในกล่องจดหมายเพื่อเลือกรหัสผ่านใหม่",
   "auth.passwordsDoNotMatch": "รหัสผ่านยืนยันไม่ตรงกัน",
   "auth.passwordUpdated": "อัปเดตรหัสผ่านแล้ว เข้าสู่ระบบด้วยรหัสผ่านใหม่",
+  "auth.passwordPlaceholder": "อย่างน้อย 8 ตัวอักษร",
   "auth.preparingWorkspace": "กำลังเตรียมคอนโซลค่าใช้จ่ายและกู้คืนสถานะการเข้าถึง",
+  "auth.productTitle": "Expense Form",
   "auth.recoveryDescription":
     "บันทึกรหัสผ่านใหม่ที่นี่ แล้วเข้าสู่ระบบอีกครั้ง",
   "auth.recoveryInvalid": "ลิงก์กู้คืนไม่ถูกต้องหรือหมดอายุ โปรดขออีเมลรีเซ็ตรหัสผ่านใหม่",
   "auth.recoveryPrompt": "เลือกรหัสผ่านใหม่เพื่อรีเซ็ตบัญชีให้เสร็จ",
   "auth.refreshStatus": "รีเฟรชสถานะ",
+  "auth.requestAccess": "ขอเข้าใช้งาน",
+  "auth.requestAccessDescription":
+    "สร้างคำขอบัญชี คุณจะใช้แอปได้หลังจากผู้ดูแลอนุมัติ",
   "auth.requestSupabaseError":
     "คำขอเชื่อมต่อฐานข้อมูลแอปไม่สำเร็จ ตรวจสอบ database URL และเครือข่าย",
   "auth.resetDescription":
@@ -389,14 +390,24 @@ const th: Record<keyof typeof en, string> = {
   "auth.sending": "กำลังส่ง...",
   "auth.sessionExpired": "เซสชันหมดอายุ โปรดเข้าสู่ระบบอีกครั้ง",
   "auth.setNewPassword": "ตั้งรหัสผ่านใหม่",
-  "auth.signup": "สมัครใช้งาน",
+  "auth.signup": "ขอเข้าใช้งาน",
   "auth.supabaseAuthOnly":
     "ใช้การยืนยันตัวตนด้วยอีเมล/รหัสผ่านเท่านั้น บัญชีใหม่จะเข้าคิวรออนุมัติก่อนใช้แอป",
+  "auth.needAccess": "ต้องการเข้าใช้งาน?",
   "auth.useEightChars": "ใช้รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร",
   "auth.working": "กำลังทำงาน...",
-  "dashboard.errorLoadSummaries": "ไม่สามารถโหลดสรุปค่าใช้จ่ายจากฐานข้อมูล",
-  "dashboard.loadingReports": "กำลังโหลดรายงานจากฐานข้อมูล...",
-  "dashboard.noSavedDates": "ยังไม่มีวันที่บันทึก",
+  "dashboard.createForDate": "สร้างค่าใช้จ่ายสำหรับวันที่นี้",
+  "dashboard.description": "สร้าง ดู และแก้ไขคำขอเบิกค่าใช้จ่ายรายวันของคุณ",
+  "dashboard.errorLoadSummaries":
+    "ไม่สามารถโหลดรายการค่าใช้จ่ายของคุณ โปรดลองอีกครั้ง หรือติดต่อผู้ดูแลหากยังเกิดปัญหา",
+  "dashboard.expenseDate": "วันที่ค่าใช้จ่าย",
+  "dashboard.loadingReports": "กำลังโหลดค่าใช้จ่ายของคุณ...",
+  "dashboard.noSavedDates": "ยังไม่มีค่าใช้จ่ายที่บันทึก",
+  "dashboard.noSavedDatesDescription":
+    "เลือกวันที่ด้านบนแล้วสร้างฟอร์มค่าใช้จ่ายแรกของคุณ",
+  "dashboard.openForDate": "เปิดค่าใช้จ่ายสำหรับวันที่นี้",
+  "dashboard.recentExpenses": "ค่าใช้จ่ายล่าสุด",
+  "dashboard.title": "ค่าใช้จ่ายของฉัน",
   "company.addCompany": "เพิ่มบริษัท",
   "company.companyCouldNotSave": "ไม่สามารถบันทึกบริษัทไปยังฐานข้อมูล",
   "company.companyCouldNotUpdate": "ไม่สามารถอัปเดตบริษัทในฐานข้อมูล",
