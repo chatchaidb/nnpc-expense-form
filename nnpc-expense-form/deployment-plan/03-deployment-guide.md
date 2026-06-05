@@ -2,7 +2,7 @@
 
 This guide assumes:
 - Internal VPS running Linux (Ubuntu/Debian recommended)
-- VPS is on the same internal network as `192.168.0.207` (SQL Server)
+- VPS is on the same internal network as SQL Server
 - Domain `nnpc.ai` is registered and you have DNS control
 - You have SSH access to the VPS
 
@@ -54,7 +54,7 @@ cloudflared version
 ```bash
 # Test that the VPS can reach the SQL Server
 nc -zv 192.168.0.207 1434
-# Expected: "Connection to 192.168.0.207 1434 port [tcp/*] succeeded!"
+# Expected: "Connection to DB 1434 port [tcp/*] succeeded!"
 
 # If nc is not installed:
 sudo apt install netcat-openbsd -y
@@ -162,7 +162,7 @@ echo "Generated: $BETTER_AUTH_SECRET"
 
 # Create .env
 cat > .env << EOF
-DATABASE_URL="sqlserver://192.168.0.207:1434;database=nnpcexpenseDB;user=nnpc;password=nnpc@admin;trustServerCertificate=true"
+DATABASE_URL="sqlserver://ip;database=nnpcexpenseDB;user=nnpc;password=nnpc@admin;trustServerCertificate=true"
 BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET}"
 BETTER_AUTH_URL="https://expenseform.nnpc.ai"
 EOF
@@ -243,7 +243,7 @@ Then visit `https://expenseform.nnpc.ai` — you should see the NNPC expense for
 | Symptom | Likely Cause | Fix |
 |---|---|---|
 | Tunnel shows `ERR Unable to reach the origin service` | App container not running or cloudflared can't resolve `app:3000` | `docker compose ps` — check app is Up. Verify both on same Docker network. |
-| `ECONNREFUSED 192.168.0.207:1434` in app logs | VPS can't reach SQL Server | `nc -zv 192.168.0.207 1434` from VPS |
+| `ECONNREFUSED ip` in app logs | VPS can't reach SQL Server | `nc -zv ip` from VPS |
 | Site loads without styles/JS | Static files not copied correctly | Verify `COPY .next/static ./.next/static` in Dockerfile, rebuild |
 | Users logged out after deploy | `BETTER_AUTH_SECRET` changed | Restore previous secret value |
 | `PrismaClientInitializationError` | Prisma client not generated or wrong arch | Add `npx prisma generate` in build stage, rebuild |
@@ -314,7 +314,7 @@ docker compose up -d cloudflared
 
 ### Backups
 
-The database is on a separate SQL Server at `192.168.0.207` — back it up using SQL Server's native tools. Docker containers are stateless; only these files on the VPS need backup:
+The database is on a separate SQL Server at `ip` — back it up using SQL Server's native tools. Docker containers are stateless; only these files on the VPS need backup:
 - `.env`
 - `cloudflared/config.yml`
 - `cloudflared/credentials.json`
@@ -354,7 +354,7 @@ Before going live:
 
 | Variable | ☐ | Value |
 |---|---|---|
-| `DATABASE_URL` | ☐ | `sqlserver://192.168.0.207:1434;database=nnpcexpenseDB;user=nnpc;password=<real>;trustServerCertificate=true` |
+| `DATABASE_URL` | ☐ | `sqlserver://ip;database=nnpcexpenseDB;user=nnpc;password=<real>;trustServerCertificate=true` |
 | `BETTER_AUTH_SECRET` | ☐ | 64-char hex (`openssl rand -hex 32`) |
 | `BETTER_AUTH_URL` | ☐ | `https://expenseform.nnpc.ai` |
 
@@ -364,7 +364,7 @@ Before going live:
 
 ```bash
 # OUTBOUND only — no inbound ports needed
-sudo ufw allow out to 192.168.0.207 port 1434 proto tcp   # SQL Server
+sudo ufw allow out to ip port 1434 proto tcp   # SQL Server
 sudo ufw allow out 443/tcp                                  # Cloudflare tunnel fallback
 sudo ufw allow out 7844/udp                                # Cloudflare tunnel QUIC
 ```
