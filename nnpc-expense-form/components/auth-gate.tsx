@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import {
-  ArrowRight,
-  LockKeyhole,
-  LogOut,
-  Mail,
-  ShieldCheck,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, LockKeyhole, LogOut, Mail } from "lucide-react";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { useI18n } from "@/lib/i18n";
 import {
   LOCAL_DEVELOPMENT_ACCESS_TOKEN,
@@ -79,7 +72,7 @@ function readAuthErrorMessage(error: unknown, fallback: string) {
     return fallback;
   }
 
-  return detail;
+  return getFriendlyErrorMessage(new Error(detail), fallback);
 }
 
 function buildLocalAuth() {
@@ -187,7 +180,9 @@ export default function AuthGate({
         }
 
         setAccount(null);
-        setAccountMessage(error instanceof Error ? error.message : t("auth.authIssue"));
+        setAccountMessage(
+          getFriendlyErrorMessage(error, t("auth.accountStatusCheckError")),
+        );
       } finally {
         if (isActive) {
           setIsLoadingAccount(false);
@@ -268,7 +263,7 @@ export default function AuthGate({
     } catch (error) {
       setAuthMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : t("auth.requestSupabaseError"),
+        text: getFriendlyErrorMessage(error, t("auth.requestSupabaseError")),
       });
     } finally {
       setIsSubmittingAuth(false);
@@ -329,172 +324,116 @@ export default function AuthGate({
   if (!sessionData?.user || !account) {
     return (
       <div className="page-shell min-h-screen">
-        <div className="mx-auto flex w-full max-w-7xl justify-end px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+        <div className="mx-auto flex w-full max-w-5xl justify-end px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">
           <ThemeSettingsSheet />
         </div>
 
-        <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-8 pt-4 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)] lg:px-8 lg:pb-10">
-          <section className="premium-panel rounded-[2rem] border border-border/60 p-6 sm:p-8 lg:p-10">
-            <div className="flex flex-col gap-8">
-              <div className="space-y-4">
-                <Badge
-                  className="rounded-full border-white/10 bg-white/5 px-4 py-1 text-[0.7rem] uppercase tracking-[0.28em] text-primary"
-                  variant="outline"
-                >
-                  NNPC daily expense
-                </Badge>
-
-                <div className="space-y-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
-                    {t("auth.heroEyebrow")}
-                  </p>
-                  <h1 className="max-w-3xl font-serif text-4xl tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
-                    {t("auth.heroTitle")}
-                  </h1>
-                  <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                    {t("auth.heroDescription")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FeatureCard
-                  description={t("auth.featureDashboard.description")}
-                  icon={<Wallet className="size-4" />}
-                  title={t("auth.featureDashboard.title")}
-                />
-                <FeatureCard
-                  description={t("auth.featureSecure.description")}
-                  icon={<ShieldCheck className="size-4" />}
-                  title={t("auth.featureSecure.title")}
-                />
-                <FeatureCard
-                  description={t("auth.featureReceipt.description")}
-                  icon={<Sparkles className="size-4" />}
-                  title={t("auth.featureReceipt.title")}
-                />
-                <FeatureCard
-                  description={t("auth.featureTheme.description")}
-                  icon={<LockKeyhole className="size-4" />}
-                  title={t("auth.featureTheme.title")}
-                />
-              </div>
+        <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center px-4 pb-10 pt-4 sm:px-6 lg:px-8">
+          <section className="w-full max-w-md">
+            <div className="mb-7 text-center">
+              <h1 className="font-serif text-4xl font-medium tracking-[-0.03em] text-foreground sm:text-5xl">
+                {t("auth.productTitle")}
+              </h1>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                {t("auth.developedBy")}
+              </p>
             </div>
-          </section>
 
-          <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-            <CardHeader className="gap-5 border-b border-border/60 px-6 py-6">
-              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-background/70 p-1">
-                <Button
-                  className={cn(
-                    "h-10 flex-1 rounded-full px-4 shadow-none",
-                    authMode !== "login" &&
-                      "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
-                  )}
-                  type="button"
-                  variant={authMode === "login" ? "default" : "ghost"}
-                  onClick={() => {
-                    setAuthMode("login");
-                    setAuthMessage(null);
-                  }}
-                >
-                  {t("auth.login")}
-                </Button>
-                <Button
-                  className={cn(
-                    "h-10 flex-1 rounded-full px-4 shadow-none",
-                    authMode !== "signup" &&
-                      "bg-transparent text-muted-foreground hover:bg-background/80 hover:text-foreground",
-                  )}
-                  type="button"
-                  variant={authMode === "signup" ? "default" : "ghost"}
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthMessage(null);
-                  }}
-                >
-                  {t("auth.signup")}
-                </Button>
-              </div>
-
-              <div className="space-y-2">
+            <Card className="premium-panel rounded-[1.75rem] border-border/70 py-0">
+              <CardHeader className="gap-2 border-b border-border/60 px-6 py-6">
                 <CardTitle className="font-serif text-3xl tracking-tight">
-                  {authMode === "login" ? t("auth.login") : t("auth.createWorkspace")}
+                  {authMode === "login" ? t("auth.login") : t("auth.requestAccess")}
                 </CardTitle>
-                <CardDescription className="text-sm leading-7">
-                  {t("auth.supabaseAuthOnly")}
+                <CardDescription className="text-sm leading-6">
+                  {authMode === "login"
+                    ? t("auth.loginDescription")
+                    : t("auth.requestAccessDescription")}
                 </CardDescription>
-              </div>
-            </CardHeader>
+              </CardHeader>
 
-            <CardContent className="px-6 py-6">
-              <form className="space-y-5" onSubmit={handleAuthSubmit}>
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {t("common.email")}
-                  </span>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      autoComplete="email"
-                      className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                      placeholder="name@company.com"
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                    />
-                  </div>
-                </label>
+              <CardContent className="px-6 py-6">
+                <form className="space-y-5" onSubmit={handleAuthSubmit}>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-foreground">
+                      {t("common.email")}
+                    </span>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        autoComplete="email"
+                        className="h-12 rounded-2xl bg-background/75 pl-11"
+                        placeholder="name@company.com"
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                      />
+                    </div>
+                  </label>
 
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {t("common.password")}
-                  </span>
-                  <div className="relative">
-                    <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      autoComplete={authMode === "login" ? "current-password" : "new-password"}
-                      className="h-12 rounded-2xl border-white/10 bg-background/75 pl-11"
-                      placeholder="At least 8 characters"
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                  </div>
-                </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-foreground">
+                      {t("common.password")}
+                    </span>
+                    <div className="relative">
+                      <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                        className="h-12 rounded-2xl bg-background/75 pl-11"
+                        placeholder={t("auth.passwordPlaceholder")}
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                      />
+                    </div>
+                  </label>
 
-                {authMessage ? (
-                  <Alert
-                    className={cn(
-                      "rounded-2xl border-white/10",
-                      authMessage.tone === "error"
-                        ? "border-destructive/30 bg-destructive/10"
-                        : "bg-background/70",
-                    )}
-                    variant={authMessage.tone === "error" ? "destructive" : "default"}
+                  {authMessage ? (
+                    <Alert
+                      className={cn(
+                        "rounded-2xl",
+                        authMessage.tone === "error"
+                          ? "border-destructive/30 bg-destructive/10"
+                          : "bg-background/70",
+                      )}
+                      variant={authMessage.tone === "error" ? "destructive" : "default"}
+                    >
+                      <AlertTitle>
+                        {authMessage.tone === "error" ? t("auth.authIssue") : t("auth.nextStep")}
+                      </AlertTitle>
+                      <AlertDescription>{authMessage.text}</AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  <Button
+                    className="h-12 w-full rounded-2xl text-sm"
+                    disabled={isSubmittingAuth}
+                    type="submit"
                   >
-                    <AlertTitle>
-                      {authMessage.tone === "error" ? t("auth.authIssue") : t("auth.nextStep")}
-                    </AlertTitle>
-                    <AlertDescription>{authMessage.text}</AlertDescription>
-                  </Alert>
-                ) : null}
+                    {isSubmittingAuth
+                      ? t("auth.working")
+                      : authMode === "login"
+                        ? t("auth.login")
+                        : t("auth.requestAccess")}
+                    <ArrowRight className="size-4" />
+                  </Button>
 
-                <Button
-                  className="h-12 w-full rounded-2xl text-sm"
-                  disabled={isSubmittingAuth}
-                  type="submit"
-                >
-                  {isSubmittingAuth
-                    ? t("auth.working")
-                    : authMode === "login"
-                      ? t("auth.login")
-                      : t("auth.createAccount")}
-                  <ArrowRight className="size-4" />
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <div className="text-center text-sm text-muted-foreground">
+                    {authMode === "login" ? t("auth.needAccess") : t("auth.alreadyApproved")}{" "}
+                    <button
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                      type="button"
+                      onClick={() => {
+                        setAuthMode(authMode === "login" ? "signup" : "login");
+                        setAuthMessage(null);
+                      }}
+                    >
+                      {authMode === "login" ? t("auth.requestAccess") : t("auth.login")}
+                    </button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </section>
         </div>
       </div>
     );
@@ -616,27 +555,5 @@ function AccessStateCard({
         {children}
       </CardContent>
     </Card>
-  );
-}
-
-function FeatureCard({
-  description,
-  icon,
-  title,
-}: {
-  description: string;
-  icon: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-background/65 p-5">
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-          {icon}
-        </span>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-      </div>
-      <p className="mt-3 text-sm leading-7 text-muted-foreground">{description}</p>
-    </div>
   );
 }

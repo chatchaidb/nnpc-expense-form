@@ -30,6 +30,11 @@ export function TopRouteTabs({
 }) {
   const { t } = useI18n();
   const showAdminRoutes = accountRole === "admin" || accountRole === "central_admin";
+
+  if (!showAdminRoutes) {
+    return null;
+  }
+
   const tabGroups: Array<{
     labelKey: TranslationKey;
     tabs: Array<{
@@ -40,7 +45,7 @@ export function TopRouteTabs({
     }>;
   }> = [
     {
-      labelKey: "nav.workspace",
+      labelKey: "nav.primary",
       tabs: [
         {
           href: "/dashboard",
@@ -95,7 +100,7 @@ export function TopRouteTabs({
       <div className="flex min-w-max flex-col gap-3 lg:min-w-0 lg:flex-row lg:flex-wrap lg:items-end">
         {tabGroups.map((group) => (
           <div className="min-w-max" key={group.labelKey}>
-            <p className="mb-2 px-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            <p className="mb-2 px-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               {group.labelKey === "nav.setup" ? (
                 <span className="inline-flex items-center gap-1.5">
                   <BadgeCheck className="size-3.5 text-primary" />
@@ -105,7 +110,7 @@ export function TopRouteTabs({
                 t(group.labelKey)
               )}
             </p>
-            <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-muted/20 p-1.5 backdrop-blur-sm">
+            <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-background/65 p-1.5 backdrop-blur-sm">
               {group.tabs.map((tab) => {
                 const Icon = tab.icon;
 
@@ -115,7 +120,7 @@ export function TopRouteTabs({
                     className={cn(
                       "flex min-h-11 items-center gap-2 rounded-[1rem] border px-4 py-2.5 text-sm font-medium transition",
                       activeSection === tab.key
-                        ? "border-border bg-background text-foreground shadow-[0_12px_24px_-18px_rgba(15,23,42,0.45)]"
+                        ? "border-primary/30 bg-primary/10 text-foreground shadow-[0_12px_24px_-18px_rgba(26,57,43,0.45)]"
                         : "border-transparent text-muted-foreground hover:bg-background/65 hover:text-foreground",
                     )}
                     href={tab.href}

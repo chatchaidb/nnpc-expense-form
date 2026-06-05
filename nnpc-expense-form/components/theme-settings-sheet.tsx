@@ -34,7 +34,7 @@ export function ThemeSettingsSheet({
 }: ThemeSettingsSheetProps) {
   const { locale, setLocale, t } = useI18n();
   const { setTheme, theme } = useTheme();
-  const isDarkMode = theme !== "light";
+  const isDarkMode = theme === "dark";
   const locales = Object.keys(LOCALE_LABELS) as Locale[];
 
   return (
@@ -101,7 +101,7 @@ export function ThemeSettingsSheet({
                     {t("settings.dark")}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {t("settings.defaultStartupMode")}
+                    {t("settings.darkScreenMode")}
                   </p>
                 </button>
 
@@ -120,7 +120,7 @@ export function ThemeSettingsSheet({
                     {t("settings.light")}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {t("settings.cleanReviewMode")}
+                    {t("settings.defaultStartupMode")}
                   </p>
                 </button>
               </div>
@@ -157,9 +157,9 @@ export function ThemeSettingsSheet({
                   {t("settings.brandPalette")}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <span className="size-6 rounded-full border border-white/10 bg-black" />
-                  <span className="size-6 rounded-full border border-black/10 bg-white" />
-                  <span className="size-6 rounded-full border border-white/10 bg-primary" />
+                  <span className="size-6 rounded-full border border-black/10 bg-[#1f4d39]" />
+                  <span className="size-6 rounded-full border border-black/10 bg-[#f7faf5]" />
+                  <span className="size-6 rounded-full border border-black/10 bg-primary" />
                 </div>
               </div>
             </CardContent>

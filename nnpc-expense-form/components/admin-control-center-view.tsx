@@ -406,7 +406,7 @@ function ProtectedAdminControlCenter({
             variant={message.tone === "error" ? "destructive" : "default"}
           >
             <AlertTitle>
-              {message.tone === "error" ? "User Management Unavailable" : "User Management"}
+              {message.tone === "error" ? "Manage Users Unavailable" : "Manage Users"}
             </AlertTitle>
             <AlertDescription>{message.text}</AlertDescription>
           </Alert>
