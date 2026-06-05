@@ -23,25 +23,21 @@
                     ┌──────────┴──────────┐
                     │   Cloudflare CDN    │
                     │  (SSL termination,  │
-                    │   DDoS protection)  │
+                    │   DDoS protection,  │
+                    │   gzip compression) │
                     └──────────┬──────────┘
                                │  encrypted tunnel (QUIC)
                                │
                     ┌──────────┴──────────┐
-                    │   cloudflared       │  ◄── Docker container on VPS
+                    │   cloudflared       │  ◄── Docker container
                     │   (reverse tunnel)  │
                     └──────────┬──────────┘
                                │
 ═══════════════════ INTERNAL NETWORK ═══════════════════
                                │
                     ┌──────────┴──────────┐
-                    │      nginx          │  ◄── Docker container, port 80
-                    │   (reverse proxy)   │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────┴──────────┐
                     │   Next.js App       │  ◄── Docker container, port 3000
-                    │   (production)      │
+                    │   (standalone mode) │
                     └──────────┬──────────┘
                                │  sqlserver:// (TDS)
                     ┌──────────┴──────────┐
@@ -55,56 +51,54 @@
 ```
 1. User opens https://expenseform.nnpc.ai
 2. DNS resolves to Cloudflare edge (nearest data center)
-3. Cloudflare terminates TLS, forwards through QUIC tunnel
-4. cloudflared on VPS receives request, forwards to nginx:80
-5. nginx proxies to app:3000 (Next.js server)
+3. Cloudflare terminates TLS, applies gzip, adds security headers
+4. Cloudflare forwards through QUIC tunnel to cloudflared on VPS
+5. cloudflared forwards to app:3000 (Next.js production server)
 6. Next.js reads/writes SQL Server @ 192.168.0.207:1434
+   - better-auth: Tarn.js connection pool (max 10)
+   - Prisma: adapter-managed connection pooling
 7. Response flows back through the same path
 ```
 
 ---
 
-## Component Roles
+## Why No nginx?
 
-### Cloudflare Tunnel (cloudflared)
+In this setup, nginx would be redundant because Cloudflare already provides:
 
-- **Purpose:** Exposes the internal app to the public internet without opening firewall ports
-- **How it works:** An outbound-only connection from VPS to Cloudflare's edge. Cloudflare then routes incoming HTTPS traffic through this tunnel.
-- **No inbound ports needed** — no port forwarding, no firewall rule changes
-- **Free tier** is sufficient for this workload
+| Concern | Handled By |
+|---|---|
+| SSL/TLS termination | Cloudflare at edge |
+| Gzip/Brotli compression | Cloudflare at edge |
+| Security headers | Cloudflare Transform Rules or `next.config.ts` |
+| Static asset caching | `/_next/static` has immutable content hashes + Cloudflare CDN |
+| DDoS protection | Cloudflare |
+| HTTP server quality | Next.js standalone server (production-grade, not dev mode) |
 
-### nginx (Reverse Proxy)
-
-- **Purpose:** Production-grade HTTP reverse proxy in front of Next.js
-- **Features:**
-  - Gzip compression (reduces bandwidth)
-  - Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
-  - Static asset caching
-  - WebSocket upgrade support
-  - Request buffering and timeout handling
-
-### Next.js App (Docker Container)
-
-- **Purpose:** Serves the Next.js application in production mode
-- **Mode:** `output: 'standalone'` — produces a minimal production build with only required dependencies
-- **Environment:** Connects to SQL Server via `DATABASE_URL`
-
-### SQL Server
-
-- **Location:** Internal network at `192.168.0.207:1434`
-- **Access:** The VPS is on the same internal network and can reach the database directly
-- **No changes needed** to the database for this deployment
+Adding nginx would mean an extra service to build, configure, monitor, and debug — with no benefit for a single-app deployment.
 
 ---
 
-## Why Cloudflare Tunnel (Instead of Alternatives)
+## Why No Load Balancer?
 
-| Approach | Pros | Cons |
-|---|---|---|
-| **Cloudflare Tunnel** (chosen) | No open ports, free SSL, DDoS protection, simple | Requires Cloudflare account |
-| Direct port forwarding | No dependency | Security risk, manual SSL management, firewall config needed |
-| Reverse proxy on VPS only | Full control | Need public IP, manage SSL certs, configure firewall |
-| VPN to external VPS | Full control | VPN overhead, additional latency, complex setup |
+Single Next.js container on a single VPS. No benefit. If you ever need horizontal scaling:
+```bash
+docker compose up -d --scale app=3
+```
+Docker's internal DNS round-robins across replicas. Add that when you need it.
+
+---
+
+## Why No Connection Pooler?
+
+Both database access layers already manage their own pools:
+
+| Layer | Pooling Mechanism |
+|---|---|
+| better-auth (Kysely) | Tarn.js — max 10 connections (`lib/auth.ts`) |
+| Prisma (app data) | Adapter-managed pool via `@prisma/adapter-mssql` |
+
+A separate pooler like PgBouncer or RDS Proxy would only add latency and another service to manage.
 
 ---
 
@@ -112,12 +106,10 @@
 
 | Source | Destination | Protocol | Port | Required |
 |---|---|---|---|---|
-| VPS (Docker) | SQL Server (`192.168.0.207`) | TDS (SQL Server) | 1434 | Yes — DB queries |
-| VPS (Docker) | Cloudflare edge | HTTPS (QUIC) | 7844 | Yes — tunnel outbound |
+| VPS (Docker) | SQL Server (`192.168.0.207`) | TDS | 1434 | Yes — DB queries |
+| VPS (Docker) | Cloudflare edge | QUIC | 7844 | Yes — tunnel outbound |
 | VPS (Docker) | Cloudflare edge | HTTPS (fallback) | 443 | Yes — tunnel outbound |
 | Public internet | VPS | — | — | **None** — tunnel is outbound only |
-
-> The only outbound requirements from the VPS are reaching the internal SQL Server and Cloudflare's edge. No inbound ports need to be opened.
 
 ---
 
@@ -135,5 +127,4 @@ Two options for DNS:
    ```
    expenseform.nnpc.ai  CNAME  <tunnel-uuid>.cfargotunnel.com
    ```
-   Requires Cloudflare Business plan if you want full CDN/proxy benefits. With free plan you still get tunnel connectivity, just without the CDN caching layer.
 
