@@ -6,7 +6,7 @@
 |---|---|
 | **Framework** | Next.js 16 (App Router) |
 | **Language** | TypeScript |
-| **Database** | Microsoft SQL Server (`192.168.0.207:1434`) |
+| **Database** | Microsoft SQL Server  |
 | **ORM** | Prisma + @prisma/adapter-mssql |
 | **Auth** | better-auth (email/password, MSSQL Kysely dialect) |
 | **UI** | shadcn/ui + Tailwind CSS v4 |
@@ -54,7 +54,7 @@
 3. Cloudflare terminates TLS, applies gzip, adds security headers
 4. Cloudflare forwards through QUIC tunnel to cloudflared on VPS
 5. cloudflared forwards to app:3000 (Next.js production server)
-6. Next.js reads/writes SQL Server @ 192.168.0.207:1434
+6. Next.js reads/writes SQL Server
    - better-auth: Tarn.js connection pool (max 10)
    - Prisma: adapter-managed connection pooling
 7. Response flows back through the same path
@@ -106,7 +106,7 @@ A separate pooler like PgBouncer or RDS Proxy would only add latency and another
 
 | Source | Destination | Protocol | Port | Required |
 |---|---|---|---|---|
-| VPS (Docker) | SQL Server (`192.168.0.207`) | TDS | 1434 | Yes — DB queries |
+| VPS (Docker) | SQL Server | TDS | 1434 | Yes — DB queries |
 | VPS (Docker) | Cloudflare edge | QUIC | 7844 | Yes — tunnel outbound |
 | VPS (Docker) | Cloudflare edge | HTTPS (fallback) | 443 | Yes — tunnel outbound |
 | Public internet | VPS | — | — | **None** — tunnel is outbound only |
