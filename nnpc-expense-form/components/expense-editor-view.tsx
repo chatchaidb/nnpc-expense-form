@@ -3071,8 +3071,8 @@ function ProtectedExpenseEditor({
 
   if (isLoadingDocument) {
     return (
-      <div className="page-shell min-h-screen">
-        <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 lg:py-8">
+      <div className="page-shell min-h-screen overflow-x-hidden">
+        <div className="mx-auto w-full max-w-[1500px] px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-7">
           <LoadingExpenseDayState />
         </div>
       </div>
@@ -3118,7 +3118,7 @@ function ProtectedExpenseEditor({
 
   return (
     <div className="page-shell min-h-screen overflow-x-hidden pb-[calc(7.75rem+env(safe-area-inset-bottom))] md:pb-0">
-      <div className="w-full px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-7">
+      <div className="mx-auto w-full max-w-[1300px] px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-7">
         <section className="screen-only">
           <header className="-mx-3 overflow-hidden border-b border-border/70 bg-background/60 px-3 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 sm:py-5 lg:-mx-8 lg:px-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -3267,18 +3267,18 @@ function ProtectedExpenseEditor({
               ) : (
                 <div className="space-y-4">
                   {rows.map((row) => {
-                      const rowNumber = rowNumberById.get(row.id) ?? row.id;
-                      const rowReference = formatExpenseLineReferenceCode(
-                        expenseDate,
-                        rowNumber,
-                        expenseCode,
-                      );
+                    const rowNumber = rowNumberById.get(row.id) ?? row.id;
+                    const rowReference = formatExpenseLineReferenceCode(
+                      expenseDate,
+                      rowNumber,
+                      expenseCode,
+                    );
 
-                      return (
-                        <article
-                          className="rounded-[1.15rem] border border-border/70 bg-background/75 p-4 shadow-[0_12px_34px_-32px_rgba(26,57,43,0.26)] sm:rounded-[1.35rem]"
-                          key={row.id}
-                        >
+                    return (
+                      <article
+                        className="rounded-[1.15rem] border border-border/70 bg-background/75 p-4 shadow-[0_12px_34px_-32px_rgba(26,57,43,0.26)] sm:rounded-[1.35rem]"
+                        key={row.id}
+                      >
                           <button
                             className="flex w-full flex-col gap-3 text-left sm:flex-row sm:items-start sm:justify-between"
                             type="button"
@@ -4293,69 +4293,100 @@ function chunkEntries<T>(entries: T[], size: number) {
 
 function LoadingExpenseDayState() {
   return (
-    <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-      <CardContent className="px-6 py-8 sm:px-10 sm:py-10">
-        <div className="flex flex-col gap-8">
-          <div className="text-center">
-            <Badge className="rounded-full px-3 py-1" variant="secondary">
-              Opening your page
-            </Badge>
-            <div className="mt-5 flex items-center justify-center gap-3">
-              {[0, 180, 360].map((delay) => (
-                <span
-                  className="size-3 rounded-full bg-primary/80 animate-[pulse_1.6s_ease-in-out_infinite]"
-                  key={delay}
-                  style={{ animationDelay: `${delay}ms` }}
-                />
-              ))}
+    <section className="screen-only">
+      <header className="-mx-3 overflow-hidden border-b border-border/70 bg-background/60 px-3 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 sm:py-5 lg:-mx-8 lg:px-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-4">
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Skeleton className="h-8 w-28 rounded-full" />
+              <Skeleton className="h-8 w-52 max-w-[68vw] rounded-full" />
+              <Skeleton className="h-8 w-24 rounded-full" />
             </div>
-            <p className="mt-5 font-serif text-3xl tracking-tight text-foreground">
-              Getting your expenses ready
-            </p>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-              We&apos;re loading your saved rows, receipt photos, and company details for
-              this day.
-            </p>
+
+            <div className="space-y-3">
+              <Skeleton className="h-12 w-64 max-w-full rounded-2xl sm:h-14 sm:w-80" />
+              <Skeleton className="h-5 w-[34rem] max-w-full rounded-full" />
+            </div>
+
+            <div className="flex max-w-full flex-wrap gap-2">
+              <Skeleton className="h-8 w-28 rounded-full" />
+              <Skeleton className="h-8 w-24 rounded-full" />
+              <Skeleton className="h-8 w-28 rounded-full" />
+            </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-[1.75rem] border border-white/10 bg-background/55 p-5">
+          <div className="grid w-full grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:w-auto sm:flex sm:flex-wrap sm:justify-end">
+            <Skeleton className="h-10 w-full rounded-full sm:w-44" />
+            <Skeleton className="h-10 w-full rounded-full sm:w-36" />
+            <Skeleton className="h-10 w-full rounded-full sm:w-32" />
+            <Skeleton className="hidden h-10 w-full rounded-full md:block sm:w-32" />
+          </div>
+        </div>
+      </header>
+
+      <div className="mt-5 md:hidden">
+        <div className="rounded-[1.2rem] border border-border/70 bg-background/80 p-3 shadow-[0_12px_34px_-30px_rgba(15,23,42,0.52)] backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-2">
               <Skeleton className="h-4 w-28 rounded-full" />
-              <Skeleton className="mt-4 h-10 w-3/4 rounded-2xl" />
-              <Skeleton className="mt-3 h-4 w-full rounded-full" />
-              <Skeleton className="mt-2 h-4 w-5/6 rounded-full" />
+              <Skeleton className="h-7 w-48 max-w-full rounded-xl" />
             </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-background/55 p-5">
-              <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <Skeleton className="h-24 rounded-[1.5rem]" key={index} />
-                ))}
-              </div>
-            </div>
+            <Skeleton className="h-7 w-20 shrink-0 rounded-full" />
           </div>
 
-          <div className="space-y-3">
+          <div className="mt-3 grid gap-2">
             {Array.from({ length: 3 }).map((_, index) => (
               <div
-                className="rounded-[1.75rem] border border-white/10 bg-background/55 p-5"
+                className="flex min-h-14 items-center gap-2.5 rounded-2xl border border-border/70 bg-card/75 px-3 py-2.5"
                 key={index}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Skeleton className="h-7 w-28 rounded-full" />
-                      <Skeleton className="h-7 w-20 rounded-full" />
-                    </div>
-                    <Skeleton className="h-4 w-72 rounded-full" />
-                  </div>
-                  <Skeleton className="h-10 w-24 rounded-2xl" />
+                <Skeleton className="size-10 shrink-0 rounded-[0.9rem]" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-28 rounded-full" />
+                  <Skeleton className="h-3.5 w-full max-w-56 rounded-full" />
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <main className="-mx-3 mt-5 border-y border-border/70 bg-card/50 sm:-mx-6 lg:-mx-8">
+        <div className="px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-32 rounded-full" />
+              <Skeleton className="h-10 w-48 rounded-2xl" />
+              <Skeleton className="h-5 w-[30rem] max-w-full rounded-full" />
+            </div>
+            <Skeleton className="h-11 w-32 rounded-full" />
+          </div>
+        </div>
+
+        <div className="border-t border-border/60 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+          <div className="rounded-[1.15rem] border border-border/70 bg-background/75 p-4 shadow-[0_12px_34px_-32px_rgba(26,57,43,0.26)] sm:rounded-[1.35rem]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-8 w-32 rounded-full" />
+                  <Skeleton className="h-8 w-24 rounded-full" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-7 w-60 max-w-full rounded-full" />
+                  <Skeleton className="h-7 w-36 rounded-full" />
+                </div>
+                <Skeleton className="h-5 w-[28rem] max-w-full rounded-full" />
+              </div>
+              <Skeleton className="h-10 w-36 rounded-2xl" />
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-center">
+            <Skeleton className="h-10 w-36 rounded-full" />
+          </div>
+        </div>
+      </main>
+    </section>
   );
 }
 
