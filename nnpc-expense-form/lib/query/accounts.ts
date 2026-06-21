@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 export type AccessStatus = "approved" | "disabled" | "pending";
 export type AccountRole = "admin" | "central_admin" | "user";
 export type AssignableRole = "admin" | "user";
+export type PasswordResetStatus = "approved" | "none" | "pending";
 
 export type UserAccount = {
   accessStatus: AccessStatus;
@@ -15,6 +16,10 @@ export type UserAccount = {
   disabledBy: string | null;
   displayName: string;
   email: string;
+  passwordResetApprovedAt: string | null;
+  passwordResetApprovedBy: string | null;
+  passwordResetRequestedAt: string | null;
+  passwordResetStatus: PasswordResetStatus;
   role: AccountRole;
   updatedAt: string;
   userId: string;
@@ -25,6 +30,7 @@ export type AdminUserManagementData = {
     approvedUsers: number;
     disabledUsers: number;
     elevatedUsers: number;
+    passwordResetRequests: number;
     pendingUsers: number;
   };
   users: UserAccount[];
@@ -38,6 +44,11 @@ function normalizeAccessStatus(rawStatus?: string | null): AccessStatus {
 function normalizeRole(rawRole?: string | null): AccountRole {
   if (rawRole === "admin" || rawRole === "central_admin") return rawRole;
   return "user";
+}
+
+function normalizePasswordResetStatus(rawStatus?: string | null): PasswordResetStatus {
+  if (rawStatus === "approved" || rawStatus === "pending") return rawStatus;
+  return "none";
 }
 
 function formatDate(value?: Date | string | null) {
@@ -54,6 +65,10 @@ function normalizeUserAccount(account: {
   disabledById: string | null;
   displayName: string;
   email: string | null;
+  passwordResetApprovedAt: Date | null;
+  passwordResetApprovedById: string | null;
+  passwordResetRequestedAt: Date | null;
+  passwordResetStatus: string | null;
   role: string;
   updatedAt: Date;
   userId: string;
@@ -67,6 +82,10 @@ function normalizeUserAccount(account: {
     disabledBy: account.disabledById,
     displayName: account.displayName,
     email: account.email ?? "",
+    passwordResetApprovedAt: formatDate(account.passwordResetApprovedAt),
+    passwordResetApprovedBy: account.passwordResetApprovedById,
+    passwordResetRequestedAt: formatDate(account.passwordResetRequestedAt),
+    passwordResetStatus: normalizePasswordResetStatus(account.passwordResetStatus),
     role: normalizeRole(account.role),
     updatedAt: formatDate(account.updatedAt) ?? "",
     userId: account.userId,
@@ -141,6 +160,9 @@ export async function getAdminUserManagement() {
       elevatedUsers: normalizedUsers.filter(
         (user) => user.role === "admin" || user.role === "central_admin",
       ).length,
+      passwordResetRequests: normalizedUsers.filter(
+        (user) => user.passwordResetStatus !== "none",
+      ).length,
       pendingUsers: normalizedUsers.filter((user) => user.accessStatus === "pending").length,
     },
     users: normalizedUsers,
@@ -154,7 +176,7 @@ export async function adminManageUserAccount({
   targetUserId,
 }: {
   actorUserId: string;
-  action: "approve" | "delete" | "disable" | "set_role";
+  action: "approve" | "approve_password_reset" | "delete" | "disable" | "set_role";
   role?: AssignableRole;
   targetUserId: string;
 }) {
@@ -183,6 +205,17 @@ export async function adminManageUserAccount({
         accessStatus: "disabled",
         disabledAt: new Date(),
         disabledById: actorUserId,
+      },
+      where: { userId: targetUserId },
+    });
+  }
+
+  if (action === "approve_password_reset") {
+    await prisma.userAccount.update({
+      data: {
+        passwordResetApprovedAt: new Date(),
+        passwordResetApprovedById: actorUserId,
+        passwordResetStatus: "approved",
       },
       where: { userId: targetUserId },
     });

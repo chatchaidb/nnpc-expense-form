@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { LogOut, ShieldCheck, Trash2, UserCheck, UserRoundCog, Users } from "lucide-react";
+import {
+  KeyRound,
+  LogOut,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserRoundCog,
+  Users,
+} from "lucide-react";
 import AuthGate, { type AuthSession } from "@/components/auth-gate";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
 import { TopRouteTabs } from "@/components/top-route-tabs";
@@ -41,6 +49,7 @@ type AdminMessage = {
 };
 
 type ManagementTab = "allowlist" | "management";
+type AccountAction = "approve" | "approve_password_reset" | "delete" | "disable" | "set_role";
 type PendingRoleReview = {
   nextRole: AssignableRole;
   user: UserAccount;
@@ -101,6 +110,17 @@ function statusBadgeClassName(status: UserAccount["accessStatus"]) {
   }
 }
 
+function passwordResetBadgeClassName(status: UserAccount["passwordResetStatus"]) {
+  switch (status) {
+    case "approved":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300";
+    case "pending":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300";
+    default:
+      return "border-border bg-background text-muted-foreground";
+  }
+}
+
 function roleBadgeClassName(role: AccountRole) {
   switch (role) {
     case "admin":
@@ -126,6 +146,18 @@ function getRowStatusDate(account: UserAccount) {
   }
 
   return account.createdAt;
+}
+
+function getPasswordResetDate(account: UserAccount) {
+  if (account.passwordResetStatus === "approved") {
+    return account.passwordResetApprovedAt ?? account.updatedAt;
+  }
+
+  if (account.passwordResetStatus === "pending") {
+    return account.passwordResetRequestedAt ?? account.updatedAt;
+  }
+
+  return null;
 }
 
 export default function AdminControlCenterView({
@@ -256,7 +288,7 @@ function ProtectedAdminControlCenter({
     successCopy,
     target,
   }: {
-    action: "approve" | "delete" | "disable" | "set_role";
+    action: AccountAction;
     confirmCopy?: string;
     role?: AssignableRole;
     successCopy?: string;
@@ -344,9 +376,10 @@ function ProtectedAdminControlCenter({
 
         <TopRouteTabs accountRole={account.role} activeSection="user-management" />
 
-        <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {isLoading && !data ? (
             <>
+              <SummaryCardSkeleton />
               <SummaryCardSkeleton />
               <SummaryCardSkeleton />
               <SummaryCardSkeleton />
@@ -377,6 +410,12 @@ function ProtectedAdminControlCenter({
                 icon={<ShieldCheck className="size-4" />}
                 label="Elevated roles"
                 value={data?.totals.elevatedUsers ?? 0}
+              />
+              <SummaryCard
+                description="Password reset requests awaiting or holding approval"
+                icon={<KeyRound className="size-4" />}
+                label="Password resets"
+                value={data?.totals.passwordResetRequests ?? 0}
               />
             </>
           )}
@@ -523,7 +562,7 @@ function ManagementTableCard({
   pendingRoles: Record<string, AssignableRole>;
   setPendingRoleReview: (value: PendingRoleReview) => void;
   runAction: (input: {
-    action: "approve" | "delete" | "disable" | "set_role";
+    action: AccountAction;
     confirmCopy?: string;
     role?: AssignableRole;
     successCopy?: string;
@@ -545,15 +584,16 @@ function ManagementTableCard({
               <TableHead className="min-w-[10rem] px-4 py-3">Role</TableHead>
               <TableHead className="min-w-[16rem] px-4 py-3">Abilities</TableHead>
               <TableHead className="min-w-[9rem] px-4 py-3">Status</TableHead>
+              <TableHead className="min-w-[12rem] px-4 py-3">Password reset</TableHead>
               <TableHead className="min-w-[8rem] px-4 py-3">Updated</TableHead>
               <TableHead className="min-w-[12rem] px-4 py-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <LoadingTableRows colCount={7} />
+              <LoadingTableRows colCount={8} />
             ) : managedUsers.length === 0 ? (
-              <EmptyTableRow colSpan={7} message="No approved or disabled accounts are available." />
+              <EmptyTableRow colSpan={8} message="No approved or disabled accounts are available." />
             ) : (
               managedUsers.map((user) => {
                 const isCurrentUser = user.userId === currentAccount.userId;
@@ -567,6 +607,9 @@ function ManagementTableCard({
                 const canDisable =
                   user.accessStatus === "approved" &&
                   !isCurrentUser &&
+                  (isCentralAdmin ? user.role !== "central_admin" : user.role === "user");
+                const canApprovePasswordReset =
+                  user.passwordResetStatus === "pending" &&
                   (isCentralAdmin ? user.role !== "central_admin" : user.role === "user");
                 const rowLocked = isCurrentUser || user.role === "central_admin";
                 const rowMutationKey =
@@ -624,6 +667,16 @@ function ManagementTableCard({
                     <TableCell className="px-4 py-4 align-middle">
                       <StatusBadge status={user.accessStatus} />
                     </TableCell>
+                    <TableCell className="px-4 py-4 align-middle">
+                      <div className="flex flex-col gap-1.5">
+                        <PasswordResetBadge status={user.passwordResetStatus} />
+                        {user.passwordResetStatus !== "none" ? (
+                          <span className="text-xs text-muted-foreground">
+                            {formatShortDate(getPasswordResetDate(user))}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell className="px-4 py-4 align-middle text-muted-foreground">
                       {formatShortDate(getRowStatusDate(user))}
                     </TableCell>
@@ -643,6 +696,23 @@ function ManagementTableCard({
                             }
                           >
                             Approve
+                          </Button>
+                        ) : null}
+                        {canApprovePasswordReset ? (
+                          <Button
+                            disabled={rowMutationKey !== null}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              void runAction({
+                                action: "approve_password_reset",
+                                successCopy: `${user.displayName} can now set a new password from the password reset page.`,
+                                target: user,
+                              })
+                            }
+                          >
+                            Approve reset
                           </Button>
                         ) : null}
                         {canDisable ? (
@@ -702,7 +772,7 @@ function AllowlistTableCard({
   mutatingKey: string | null;
   pendingRoles: Record<string, AssignableRole>;
   runAction: (input: {
-    action: "approve" | "delete" | "disable" | "set_role";
+    action: AccountAction;
     confirmCopy?: string;
     role?: AssignableRole;
     successCopy?: string;
@@ -1015,6 +1085,19 @@ function StatusBadge({ status }: { status: UserAccount["accessStatus"] }) {
       variant="outline"
     >
       {status}
+    </Badge>
+  );
+}
+
+function PasswordResetBadge({ status }: { status: UserAccount["passwordResetStatus"] }) {
+  const label = status === "none" ? "None" : status;
+
+  return (
+    <Badge
+      className={cn("w-fit rounded-full px-2.5 py-0.5 capitalize", passwordResetBadgeClassName(status))}
+      variant="outline"
+    >
+      {label}
     </Badge>
   );
 }

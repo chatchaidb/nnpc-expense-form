@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   return withApiErrors(async () => {
     const { session } = await requireRoles(["admin", "central_admin"]);
     const body = (await request.json()) as {
-      action?: "approve" | "delete" | "disable" | "set_role";
+      action?: "approve" | "approve_password_reset" | "delete" | "disable" | "set_role";
       role?: AssignableRole;
       targetUserId?: string;
     };

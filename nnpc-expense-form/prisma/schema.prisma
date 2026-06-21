@@ -53,8 +53,8 @@ model AuthAccount {
   updatedAt             DateTime  @default(now()) @updatedAt
   user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([userId])
   @@unique([providerId, accountId], map: "account_provider_account_idx")
+  @@index([userId])
   @@map("account")
 }
 
@@ -84,29 +84,36 @@ model Profile {
 }
 
 model UserAccount {
-  userId        String          @id @default(dbgenerated("newid()")) @map("user_id") @db.UniqueIdentifier
-  email         String?         @db.NVarChar(320)
-  displayName   String          @map("display_name") @db.NVarChar(255)
-  role          String          @default("user") @db.NVarChar(32)
-  accessStatus  String          @default("pending") @map("access_status") @db.NVarChar(32)
-  approvedAt    DateTime?       @map("approved_at")
-  approvedById  String?         @map("approved_by") @db.UniqueIdentifier
-  disabledAt    DateTime?       @map("disabled_at")
-  disabledById  String?         @map("disabled_by") @db.UniqueIdentifier
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at")
-  reports       ExpenseReport[]
-  profile       Profile?
-  authUser      AuthUser?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  approvedBy    UserAccount?    @relation("UserAccountApprovedBy", fields: [approvedById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
-  approvedUsers UserAccount[]   @relation("UserAccountApprovedBy")
-  disabledBy    UserAccount?    @relation("UserAccountDisabledBy", fields: [disabledById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
-  disabledUsers UserAccount[]   @relation("UserAccountDisabledBy")
-  companies     UserCompany[]
+  userId                     String          @id @default(dbgenerated("newid()")) @map("user_id") @db.UniqueIdentifier
+  email                      String?         @db.NVarChar(320)
+  displayName                String          @map("display_name") @db.NVarChar(255)
+  role                       String          @default("user") @db.NVarChar(32)
+  accessStatus               String          @default("pending") @map("access_status") @db.NVarChar(32)
+  approvedAt                 DateTime?       @map("approved_at")
+  approvedById               String?         @map("approved_by") @db.UniqueIdentifier
+  disabledAt                 DateTime?       @map("disabled_at")
+  disabledById               String?         @map("disabled_by") @db.UniqueIdentifier
+  passwordResetStatus        String          @default("none") @map("password_reset_status") @db.NVarChar(32)
+  passwordResetRequestedAt   DateTime?       @map("password_reset_requested_at")
+  passwordResetApprovedAt    DateTime?       @map("password_reset_approved_at")
+  passwordResetApprovedById  String?         @map("password_reset_approved_by") @db.UniqueIdentifier
+  createdAt                  DateTime        @default(now()) @map("created_at")
+  updatedAt                  DateTime        @default(now()) @updatedAt @map("updated_at")
+  reports                    ExpenseReport[]
+  profile                    Profile?
+  authUser                   AuthUser?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedBy                 UserAccount?    @relation("UserAccountApprovedBy", fields: [approvedById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  approvedUsers              UserAccount[]   @relation("UserAccountApprovedBy")
+  disabledBy                 UserAccount?    @relation("UserAccountDisabledBy", fields: [disabledById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  disabledUsers              UserAccount[]   @relation("UserAccountDisabledBy")
+  passwordResetApprovedBy    UserAccount?    @relation("UserAccountPasswordResetApprovedBy", fields: [passwordResetApprovedById], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  passwordResetApprovedUsers UserAccount[]   @relation("UserAccountPasswordResetApprovedBy")
+  companies                  UserCompany[]
 
   @@index([role])
   @@index([accessStatus])
   @@index([accessStatus, role])
+  @@index([passwordResetStatus])
   @@map("user_accounts")
 }
 
