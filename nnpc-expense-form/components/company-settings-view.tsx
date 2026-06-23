@@ -109,6 +109,7 @@ function ProtectedCompanySettings({
   const [editCompanyMessage, setEditCompanyMessage] = useState<CompanyMessage | null>(null);
   const [isUpdatingCompany, setIsUpdatingCompany] = useState(false);
   const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
+  const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -200,6 +201,15 @@ function ProtectedCompanySettings({
     setEditCompanyMessage(null);
   };
 
+  const resetAddCompanyState = () => {
+    setCompanyAddressDraft("");
+    setCompanyNameDraft("");
+    setCompanyTaxIdDraft("");
+    setCompanyLogoFile(null);
+    setCompanyLogoDraft("");
+    setCompanyMessage(null);
+  };
+
   const openEditCompany = (company: CompanyRecord) => {
     setEditingCompany(company);
     setEditCompanyAddressDraft(limitTextLength(company.companyAddress, COMPANY_ADDRESS_MAX_LENGTH));
@@ -278,6 +288,7 @@ function ProtectedCompanySettings({
       setCompanyTaxIdDraft("");
       setCompanyLogoFile(null);
       setCompanyLogoDraft("");
+      setIsAddCompanyOpen(false);
       setCompanyMessage({
         tone: "info",
         text: t("company.savedMessage"),
@@ -438,7 +449,7 @@ function ProtectedCompanySettings({
 
         <TopRouteTabs accountRole={account.role} activeSection="companies" />
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+        <div className="mt-6">
           <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
             <CardHeader className="gap-3 border-b border-border/60 px-5 py-5 sm:px-6 sm:py-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -451,9 +462,22 @@ function ProtectedCompanySettings({
                   </CardDescription>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-background/65 px-4 py-2 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                  <Building2 className="size-4 text-primary" />
-                  {t("company.savedCount", { count: companies.length })}
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-background/65 px-4 py-2 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                    <Building2 className="size-4 text-primary" />
+                    {t("company.savedCount", { count: companies.length })}
+                  </div>
+                  <Button
+                    className="h-10 rounded-full px-4"
+                    type="button"
+                    onClick={() => {
+                      setCompanyMessage(null);
+                      setIsAddCompanyOpen(true);
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    Add Company Profile
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -468,7 +492,7 @@ function ProtectedCompanySettings({
                   {t("company.noCompanies")}
                 </div>
               ) : (
-                <div className="grid gap-3 2xl:grid-cols-2">
+                <div className="grid gap-3 lg:grid-cols-2">
                   {companies.map((company) => (
                     <article
                       className="grid min-w-0 gap-4 rounded-[1.5rem] border border-white/10 bg-background/65 p-4"
@@ -538,161 +562,204 @@ function ProtectedCompanySettings({
                   ))}
                 </div>
               )}
+              {companyMessage ? (
+                <div
+                  className={`mt-4 rounded-3xl border px-4 py-3 text-sm ${
+                    companyMessage.tone === "error"
+                      ? "border-destructive/30 bg-destructive/10 text-destructive"
+                      : "border-primary/20 bg-primary/10 text-foreground"
+                  }`}
+                >
+                  {companyMessage.text}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
-
-          <div className="space-y-4">
-            <Card className="premium-panel rounded-[2rem] border-border/60 py-0">
-              <CardHeader className="gap-3 border-b border-border/60 px-5 py-5">
-                <BadgeLike label={t("company.newHeader")} />
-                <CardTitle className="font-serif text-3xl tracking-tight">
-                  {t("company.addCompany")}
-                </CardTitle>
-                <CardDescription className="text-sm leading-7">
-                  {t("company.saveFullHeader")}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-5 px-5 py-5">
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">{t("common.companyName")}</span>
-                  <Input
-                    className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                    maxLength={COMPANY_NAME_MAX_LENGTH}
-                    placeholder="NNPC Consulting Company Limited"
-                    type="text"
-                    value={companyNameDraft}
-                    onChange={(event) =>
-                      setCompanyNameDraft(
-                        limitTextLength(event.target.value, COMPANY_NAME_MAX_LENGTH),
-                      )
-                    }
-                  />
-                  <span className="block text-right text-xs text-muted-foreground">
-                    {companyNameDraft.length}/{COMPANY_NAME_MAX_LENGTH}
-                  </span>
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">{t("common.companyTaxId")}</span>
-                  <Input
-                    className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
-                    maxLength={COMPANY_TAX_ID_MAX_LENGTH}
-                    placeholder="0105539123456"
-                    type="text"
-                    value={companyTaxIdDraft}
-                    onChange={(event) =>
-                      setCompanyTaxIdDraft(
-                        limitTextLength(event.target.value, COMPANY_TAX_ID_MAX_LENGTH),
-                      )
-                    }
-                  />
-                  <span className="block text-right text-xs text-muted-foreground">
-                    {companyTaxIdDraft.length}/{COMPANY_TAX_ID_MAX_LENGTH}
-                  </span>
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">{t("common.companyAddress")}</span>
-                  <Textarea
-                    className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
-                    maxLength={COMPANY_ADDRESS_MAX_LENGTH}
-                    placeholder="99 Example Tower, 18th Floor, Sukhumvit Road, Khlong Toei, Bangkok 10110"
-                    value={companyAddressDraft}
-                    onChange={(event) =>
-                      setCompanyAddressDraft(
-                        limitTextLength(event.target.value, COMPANY_ADDRESS_MAX_LENGTH),
-                      )
-                    }
-                  />
-                  <span className="block text-right text-xs text-muted-foreground">
-                    {companyAddressDraft.length}/{COMPANY_ADDRESS_MAX_LENGTH}
-                  </span>
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-foreground">{t("common.companyLogo")}</span>
-                  <Input
-                    className="h-12 rounded-2xl border-white/10 bg-background/75 px-4 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => {
-                      void handleCompanyLogoChange(event);
-                    }}
-                  />
-                </label>
-
-                <Button
-                  className="h-11 rounded-2xl px-5 sm:w-fit"
-                  type="button"
-                  onClick={handleSaveCompany}
-                  disabled={isSavingCompany}
-                >
-                  <Plus className="size-4" />
-                  {isSavingCompany ? t("common.saving") : t("company.saveCompany")}
-                </Button>
-
-                {companyMessage ? (
-                  <div
-                    className={`rounded-3xl border px-4 py-3 text-sm ${
-                      companyMessage.tone === "error"
-                        ? "border-destructive/30 bg-destructive/10 text-destructive"
-                        : "border-primary/20 bg-primary/10 text-foreground"
-                    }`}
-                  >
-                    {companyMessage.text}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[2rem] border-border/60 py-0">
-              <CardContent className="px-5 py-5">
-                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                  {t("company.headerPreview")}
-                </p>
-                <div className="mt-4 flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/80">
-                    {companyLogoDraft ? (
-                      <Image
-                        alt={companyNameDraft || t("company.logoPreview")}
-                        className="h-full w-full object-contain"
-                        height={160}
-                        src={companyLogoDraft}
-                        unoptimized
-                        width={160}
-                      />
-                    ) : (
-                      <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                        {t("common.logo")}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                      {companyNameDraft || t("company.nameAppears")}
-                    </p>
-                    {companyTaxIdDraft ? (
-                      <p className="mt-1 break-all text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                        {t("common.taxId", { taxId: companyTaxIdDraft })}
-                      </p>
-                    ) : null}
-                    {companyAddressDraft ? (
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
-                        {companyAddressDraft}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {t("company.headerPrinted")}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
+
+      <Dialog
+        open={isAddCompanyOpen}
+        onOpenChange={(open) => {
+          if (isSavingCompany) {
+            return;
+          }
+
+          setIsAddCompanyOpen(open);
+
+          if (!open) {
+            resetAddCompanyState();
+          }
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[2rem] border-border/60 p-0 sm:max-w-[56rem]"
+          showCloseButton={!isSavingCompany}
+          onInteractOutside={(event) => {
+            if (isSavingCompany) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <DialogHeader className="shrink-0 gap-3 border-b border-border/60 px-6 py-5">
+            <BadgeLike label={t("company.newHeader")} />
+            <DialogTitle className="font-serif text-3xl tracking-tight">
+              Add Company Profile
+            </DialogTitle>
+            <DialogDescription className="max-w-2xl text-sm leading-7">
+              {t("company.saveFullHeader")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid min-h-0 flex-1 items-start gap-6 overflow-y-auto px-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
+            <div className="space-y-5">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">{t("common.companyName")}</span>
+                <Input
+                  className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                  maxLength={COMPANY_NAME_MAX_LENGTH}
+                  placeholder="NNPC Consulting Company Limited"
+                  type="text"
+                  value={companyNameDraft}
+                  onChange={(event) =>
+                    setCompanyNameDraft(
+                      limitTextLength(event.target.value, COMPANY_NAME_MAX_LENGTH),
+                    )
+                  }
+                />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {companyNameDraft.length}/{COMPANY_NAME_MAX_LENGTH}
+                </span>
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">{t("common.companyTaxId")}</span>
+                <Input
+                  className="h-11 rounded-2xl border-white/10 bg-background/75 px-4"
+                  maxLength={COMPANY_TAX_ID_MAX_LENGTH}
+                  placeholder="0105539123456"
+                  type="text"
+                  value={companyTaxIdDraft}
+                  onChange={(event) =>
+                    setCompanyTaxIdDraft(
+                      limitTextLength(event.target.value, COMPANY_TAX_ID_MAX_LENGTH),
+                    )
+                  }
+                />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {companyTaxIdDraft.length}/{COMPANY_TAX_ID_MAX_LENGTH}
+                </span>
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">{t("common.companyAddress")}</span>
+                <Textarea
+                  className="min-h-24 rounded-2xl border-white/10 bg-background/75 px-4 py-3"
+                  maxLength={COMPANY_ADDRESS_MAX_LENGTH}
+                  placeholder="99 Example Tower, 18th Floor, Sukhumvit Road, Khlong Toei, Bangkok 10110"
+                  value={companyAddressDraft}
+                  onChange={(event) =>
+                    setCompanyAddressDraft(
+                      limitTextLength(event.target.value, COMPANY_ADDRESS_MAX_LENGTH),
+                    )
+                  }
+                />
+                <span className="block text-right text-xs text-muted-foreground">
+                  {companyAddressDraft.length}/{COMPANY_ADDRESS_MAX_LENGTH}
+                </span>
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">{t("common.companyLogo")}</span>
+                <Input
+                  className="h-12 rounded-2xl border-white/10 bg-background/75 px-4 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    void handleCompanyLogoChange(event);
+                  }}
+                />
+              </label>
+
+              {companyMessage && companyMessage.tone === "error" ? (
+                <div className="rounded-3xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {companyMessage.text}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="min-w-0 rounded-[1.75rem] border border-white/10 bg-background/60 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                {t("company.headerPreview")}
+              </p>
+              <div className="mt-4 flex w-full flex-col items-start text-left">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/85">
+                  {companyLogoDraft ? (
+                    <Image
+                      alt={companyNameDraft || t("company.logoPreview")}
+                      className="h-full w-full object-contain"
+                      height={192}
+                      src={companyLogoDraft}
+                      unoptimized
+                      width={192}
+                    />
+                  ) : (
+                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      {t("common.logo")}
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-4 w-full text-sm font-medium text-foreground break-words">
+                  {companyNameDraft || t("company.nameAppears")}
+                </p>
+                {companyTaxIdDraft ? (
+                  <p className="mt-1 w-full text-xs leading-5 text-muted-foreground break-words">
+                    <span className="font-medium text-foreground/70">
+                      {t("common.companyTaxId")}
+                    </span>{" "}
+                    {companyTaxIdDraft}
+                  </p>
+                ) : null}
+                {companyAddressDraft ? (
+                  <p className="mt-2 w-full line-clamp-5 text-sm leading-6 text-muted-foreground break-words">
+                    {companyAddressDraft}
+                  </p>
+                ) : null}
+                <p className="mt-3 w-full text-sm leading-6 text-muted-foreground">
+                  {t("company.headerPrinted")}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="shrink-0 border-t border-border/60 bg-background/95 px-6 py-5">
+            <Button
+              className="rounded-full"
+              disabled={isSavingCompany}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetAddCompanyState();
+                setIsAddCompanyOpen(false);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              className="rounded-full px-5"
+              disabled={isSavingCompany}
+              type="button"
+              onClick={() => {
+                void handleSaveCompany();
+              }}
+            >
+              <Plus className="size-4" />
+              {isSavingCompany ? t("common.saving") : t("company.saveCompany")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={editingCompany !== null}
@@ -703,7 +770,7 @@ function ProtectedCompanySettings({
         }}
       >
         <DialogContent
-          className="max-h-[calc(100dvh-2rem)] overflow-hidden rounded-[2rem] border-border/60 p-0 sm:max-w-[50rem]"
+          className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[2rem] border-border/60 p-0 sm:max-w-[50rem]"
           showCloseButton={!isUpdatingCompany}
           onInteractOutside={(event) => {
             if (isUpdatingCompany) {
@@ -711,7 +778,7 @@ function ProtectedCompanySettings({
             }
           }}
         >
-          <DialogHeader className="gap-3 border-b border-border/60 px-6 py-5">
+          <DialogHeader className="shrink-0 gap-3 border-b border-border/60 px-6 py-5">
             <BadgeLike label={t("company.savedHeader")} />
             <DialogTitle className="font-serif text-3xl tracking-tight">
               {t("company.editCompany")}
@@ -721,7 +788,7 @@ function ProtectedCompanySettings({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid items-start gap-6 overflow-y-auto px-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
+          <div className="grid min-h-0 flex-1 items-start gap-6 overflow-y-auto px-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
             <div className="space-y-5">
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-foreground">{t("common.companyName")}</span>
@@ -864,7 +931,7 @@ function ProtectedCompanySettings({
             </div>
           </div>
 
-          <DialogFooter className="border-t border-border/60 px-6 py-5">
+          <DialogFooter className="shrink-0 border-t border-border/60 bg-background/95 px-6 py-5">
             <Button
               className="rounded-full"
               disabled={isUpdatingCompany}
