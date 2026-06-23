@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/api-client";
 export type AccessStatus = "approved" | "disabled" | "pending";
 export type AccountRole = "admin" | "central_admin" | "user";
 export type AssignableRole = "admin" | "user";
+export type PasswordResetStatus = "approved" | "none" | "pending";
 
 export type UserAccount = {
   accessStatus: AccessStatus;
@@ -13,6 +14,10 @@ export type UserAccount = {
   disabledBy: string | null;
   displayName: string;
   email: string;
+  passwordResetApprovedAt: string | null;
+  passwordResetApprovedBy: string | null;
+  passwordResetRequestedAt: string | null;
+  passwordResetStatus: PasswordResetStatus;
   role: AccountRole;
   updatedAt: string;
   userId: string;
@@ -23,9 +28,16 @@ export type AdminUserManagementData = {
     approvedUsers: number;
     disabledUsers: number;
     elevatedUsers: number;
+    passwordResetRequests: number;
     pendingUsers: number;
   };
   users: UserAccount[];
+};
+
+export type PasswordResetState = {
+  approvedAt: string | null;
+  requestedAt: string | null;
+  status: PasswordResetStatus;
 };
 
 export async function getCurrentUserAccount(accessToken: string) {
@@ -44,7 +56,7 @@ export async function adminManageUserAccount({
   targetUserId,
 }: {
   accessToken: string;
-  action: "approve" | "delete" | "disable" | "set_role";
+  action: "approve" | "approve_password_reset" | "delete" | "disable" | "set_role";
   role?: AssignableRole;
   targetUserId: string;
 }) {
@@ -58,4 +70,32 @@ export async function deleteAdminUserStorageAssets(accessToken?: string, targetU
   void accessToken;
   void targetUserId;
   return;
+}
+
+export async function requestPasswordReset(email: string) {
+  return apiRequest<PasswordResetState>("/api/password-reset/request", {
+    body: JSON.stringify({ email }),
+    method: "POST",
+  });
+}
+
+export async function getPasswordResetStatus(email: string) {
+  return apiRequest<PasswordResetState>(
+    `/api/password-reset/status?email=${encodeURIComponent(email)}`,
+  );
+}
+
+export async function completePasswordReset({
+  confirmPassword,
+  email,
+  password,
+}: {
+  confirmPassword: string;
+  email: string;
+  password: string;
+}) {
+  return apiRequest<PasswordResetState>("/api/password-reset/complete", {
+    body: JSON.stringify({ confirmPassword, email, password }),
+    method: "POST",
+  });
 }

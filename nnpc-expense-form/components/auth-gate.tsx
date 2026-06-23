@@ -92,6 +92,10 @@ function buildLocalAuth() {
     disabledBy: null,
     displayName: "Local reviewer",
     email: LOCAL_DEVELOPMENT_USER_EMAIL,
+    passwordResetApprovedAt: null,
+    passwordResetApprovedBy: null,
+    passwordResetRequestedAt: null,
+    passwordResetStatus: "none",
     role: "central_admin",
     updatedAt: timestamp,
     userId: "local-reviewer",
@@ -430,6 +434,17 @@ export default function AuthGate({
                       {authMode === "login" ? t("auth.requestAccess") : t("auth.login")}
                     </button>
                   </div>
+
+                  {authMode === "login" ? (
+                    <div className="text-center text-sm">
+                      <Link
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                        href="/password-reset"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                  ) : null}
                 </form>
               </CardContent>
             </Card>

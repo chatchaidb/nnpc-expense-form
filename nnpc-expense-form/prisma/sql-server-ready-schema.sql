@@ -104,11 +104,27 @@ BEGIN
     approved_by uniqueidentifier NULL,
     disabled_at datetime2 NULL,
     disabled_by uniqueidentifier NULL,
+    password_reset_status nvarchar(32) NOT NULL CONSTRAINT user_accounts_password_reset_status_df DEFAULT N'none',
+    password_reset_requested_at datetime2 NULL,
+    password_reset_approved_at datetime2 NULL,
+    password_reset_approved_by uniqueidentifier NULL,
     created_at datetime2 NOT NULL CONSTRAINT user_accounts_created_at_df DEFAULT sysutcdatetime(),
     updated_at datetime2 NOT NULL CONSTRAINT user_accounts_updated_at_df DEFAULT sysutcdatetime(),
     CONSTRAINT user_accounts_pk PRIMARY KEY (user_id)
   );
 END;
+
+IF COL_LENGTH(N'dbo.user_accounts', N'password_reset_status') IS NULL
+  ALTER TABLE dbo.user_accounts ADD password_reset_status nvarchar(32) NOT NULL CONSTRAINT user_accounts_password_reset_status_df DEFAULT N'none';
+
+IF COL_LENGTH(N'dbo.user_accounts', N'password_reset_requested_at') IS NULL
+  ALTER TABLE dbo.user_accounts ADD password_reset_requested_at datetime2 NULL;
+
+IF COL_LENGTH(N'dbo.user_accounts', N'password_reset_approved_at') IS NULL
+  ALTER TABLE dbo.user_accounts ADD password_reset_approved_at datetime2 NULL;
+
+IF COL_LENGTH(N'dbo.user_accounts', N'password_reset_approved_by') IS NULL
+  ALTER TABLE dbo.user_accounts ADD password_reset_approved_by uniqueidentifier NULL;
 
 IF OBJECT_ID(N'dbo.profiles', N'U') IS NULL
 BEGIN
@@ -260,6 +276,13 @@ BEGIN
     FOREIGN KEY (disabled_by) REFERENCES dbo.user_accounts (user_id);
 END;
 
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'user_accounts_password_reset_approved_by_fk')
+BEGIN
+  ALTER TABLE dbo.user_accounts
+    ADD CONSTRAINT user_accounts_password_reset_approved_by_fk
+    FOREIGN KEY (password_reset_approved_by) REFERENCES dbo.user_accounts (user_id);
+END;
+
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'user_accounts_display_name_nonempty')
   ALTER TABLE dbo.user_accounts ADD CONSTRAINT user_accounts_display_name_nonempty CHECK (LEN(LTRIM(RTRIM(display_name))) > 0);
 
@@ -268,6 +291,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'user_accounts_
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'user_accounts_access_status_check')
   ALTER TABLE dbo.user_accounts ADD CONSTRAINT user_accounts_access_status_check CHECK (access_status IN (N'pending', N'approved', N'disabled'));
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'user_accounts_password_reset_status_check')
+  ALTER TABLE dbo.user_accounts ADD CONSTRAINT user_accounts_password_reset_status_check CHECK (password_reset_status IN (N'none', N'pending', N'approved'));
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'user_companies_company_name_nonempty')
   ALTER TABLE dbo.user_companies ADD CONSTRAINT user_companies_company_name_nonempty CHECK (LEN(LTRIM(RTRIM(company_name))) > 0);
@@ -307,6 +333,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'user_accounts_access_sta
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'user_accounts_access_status_role_idx' AND object_id = OBJECT_ID(N'dbo.user_accounts'))
   CREATE INDEX user_accounts_access_status_role_idx ON dbo.user_accounts (access_status, role);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'user_accounts_password_reset_status_idx' AND object_id = OBJECT_ID(N'dbo.user_accounts'))
+  CREATE INDEX user_accounts_password_reset_status_idx ON dbo.user_accounts (password_reset_status);
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'user_companies_user_created_idx' AND object_id = OBJECT_ID(N'dbo.user_companies'))
   CREATE INDEX user_companies_user_created_idx ON dbo.user_companies (user_id, created_at DESC);
