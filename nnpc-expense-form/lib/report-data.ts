@@ -1,6 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
 import {
-  formatFileSize,
   hasRowContent,
   type ExpenseRow,
   type ExpenseSummary,
@@ -25,28 +24,27 @@ export type ExpenseDayDocument = {
   rows: ExpenseRow[];
 };
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
+async function uploadReceipt({
+  expenseDate,
+  file,
+  rowId,
+}: {
+  expenseDate: string;
+  file: File;
+  rowId: number;
+}) {
+  const formData = new FormData();
+  formData.set("expenseDate", expenseDate);
+  formData.set("receiptFile", file);
+  formData.set("rowId", String(rowId));
 
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("Receipt preview failed."));
-    };
-
-    reader.onerror = () => {
-      reject(reader.error ?? new Error("Receipt preview failed."));
-    };
-
-    reader.readAsDataURL(file);
+  return apiRequest<ReceiptDraft>("/api/receipts", {
+    body: formData,
+    method: "POST",
   });
 }
 
-async function materializeReceipts(rows: ExpenseRow[]) {
+async function materializeReceipts(rows: ExpenseRow[], expenseDate: string) {
   let didUpload = false;
 
   const nextRows = await Promise.all(
@@ -58,17 +56,16 @@ async function materializeReceipts(rows: ExpenseRow[]) {
           }
 
           didUpload = true;
-          const dataUrl = await readFileAsDataUrl(receipt.file);
+          const uploadedReceipt = await uploadReceipt({
+            expenseDate,
+            file: receipt.file,
+            rowId: row.id,
+          });
 
           return {
             ...receipt,
-            bucketName: "sql-server",
+            ...uploadedReceipt,
             file: undefined,
-            fileSizeBytes: receipt.file.size,
-            mimeType: receipt.file.type || receipt.mimeType || null,
-            objectPath: dataUrl,
-            previewUrl: dataUrl,
-            sizeLabel: formatFileSize(receipt.file.size),
           } satisfies ReceiptDraft;
         }),
       );
@@ -125,7 +122,7 @@ export async function upsertExpenseDay({
   note: string;
   rows: ExpenseRow[];
 }) {
-  const materialized = await materializeReceipts(rows);
+  const materialized = await materializeReceipts(rows, expenseDate);
   const response = await apiRequest<{
     didUpload: boolean;
     expenseCode: string;

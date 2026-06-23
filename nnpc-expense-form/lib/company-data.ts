@@ -14,27 +14,6 @@ export type CompanyRecord = {
   createdAt: string;
 };
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("Logo preview failed."));
-    };
-
-    reader.onerror = () => {
-      reject(reader.error ?? new Error("Logo preview failed."));
-    };
-
-    reader.readAsDataURL(file);
-  });
-}
-
 export async function listUserCompanies(accessToken: string) {
   void accessToken;
   return apiRequest<CompanyRecord[]>("/api/companies");
@@ -52,14 +31,14 @@ export async function createUserCompany({
   companyTaxId: string;
   logoFile: File;
 }) {
+  const formData = new FormData();
+  formData.set("companyAddress", companyAddress);
+  formData.set("companyName", companyName);
+  formData.set("companyTaxId", companyTaxId);
+  formData.set("logoFile", logoFile);
+
   return apiRequest<CompanyRecord>("/api/companies", {
-    body: JSON.stringify({
-      companyAddress,
-      companyName,
-      companyTaxId,
-      logoDataUrl: await readFileAsDataUrl(logoFile),
-      originalLogoFileName: logoFile.name,
-    }),
+    body: formData,
     method: "POST",
   });
 }
@@ -82,19 +61,32 @@ export async function updateUserCompany({
   >;
   logoFile?: File | null;
 }) {
+  const formData = new FormData();
+  formData.set("companyAddress", companyAddress);
+  formData.set("companyId", companyId);
+  formData.set("companyName", companyName);
+  formData.set("companyTaxId", companyTaxId);
+
+  if (logoFile) {
+    formData.set("logoFile", logoFile);
+  }
+
   return apiRequest<CompanyRecord>("/api/companies", {
-    body: JSON.stringify({
-      companyAddress,
-      companyId,
-      companyName,
-      companyTaxId,
-      ...(logoFile
-        ? {
-            logoDataUrl: await readFileAsDataUrl(logoFile),
-            originalLogoFileName: logoFile.name,
-          }
-        : {}),
-    }),
+    body: formData,
     method: "PATCH",
   });
+}
+
+export async function deleteUserCompany({
+  companyId,
+}: {
+  accessToken: string;
+  companyId: string;
+}) {
+  return apiRequest<{ companyId: string }>(
+    `/api/companies?companyId=${encodeURIComponent(companyId)}`,
+    {
+      method: "DELETE",
+    },
+  );
 }

@@ -305,6 +305,7 @@ type PendingSaveSnapshot = {
   companyId: string;
   companyLogoBucketName: string;
   companyLogoObjectPath: string;
+  companyLogoUrl: string;
   companyName: string;
   companyTaxId: string;
   department: string;
@@ -537,6 +538,28 @@ async function preloadPrintableAssets(urls: string[]) {
 
 function isInlineAssetUrl(url: string) {
   return url.startsWith("blob:") || url.startsWith("data:");
+}
+
+function buildStoredAssetUrl(objectPath: string, fallbackUrl: string) {
+  const trimmedObjectPath = objectPath.trim();
+
+  if (!trimmedObjectPath) {
+    return fallbackUrl;
+  }
+
+  if (
+    trimmedObjectPath.startsWith("data:") ||
+    trimmedObjectPath.startsWith("blob:") ||
+    /^https?:\/\//i.test(trimmedObjectPath)
+  ) {
+    return fallbackUrl || trimmedObjectPath;
+  }
+
+  return `/api/storage-assets?path=${encodeURIComponent(trimmedObjectPath)}`;
+}
+
+function getReceiptPrintableUrl(receipt: ReceiptDraft) {
+  return buildStoredAssetUrl(receipt.objectPath ?? "", receipt.previewUrl);
 }
 
 async function buildExportAssetUrlMap(urls: string[]): Promise<ExportAssetPreparationResult> {
@@ -871,6 +894,10 @@ function loadCanvasImage(
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
     image.src = url;
+
+    if (image.complete) {
+      resolve(image.naturalWidth > 0 ? image : null);
+    }
   });
 
   cache.set(url, nextImage);
@@ -1497,8 +1524,9 @@ async function renderReceiptPageCanvas(
     const rowIndex = Math.floor(entryIndex / 2);
     const cardX = contentX + columnIndex * (cellWidth + gridGap);
     const cardY = y + rowIndex * (itemHeight + gridGap);
+    const receiptPrintableUrl = getReceiptPrintableUrl(entry.receipt);
     const receiptPreviewUrl =
-      source.assetUrlMap[entry.receipt.previewUrl] ?? entry.receipt.previewUrl;
+      source.assetUrlMap[receiptPrintableUrl] ?? receiptPrintableUrl;
     const receiptImage = await loadCanvasImage(receiptPreviewUrl, imageCache);
 
     drawTextBlock({
@@ -2150,6 +2178,7 @@ function ProtectedExpenseEditor({
       companyId: selectedCompanyId,
       companyLogoBucketName: selectedCompanyLogoBucketName,
       companyLogoObjectPath: selectedCompanyLogoObjectPath,
+      companyLogoUrl: selectedCompanyLogoUrl,
       companyName: selectedCompanyName,
       companyTaxId: selectedCompanyTaxId,
       department,
@@ -2170,6 +2199,7 @@ function ProtectedExpenseEditor({
         companyId: nextSnapshot.companyId,
         companyLogoBucketName: nextSnapshot.companyLogoBucketName,
         companyLogoObjectPath: nextSnapshot.companyLogoObjectPath,
+        companyLogoUrl: nextSnapshot.companyLogoUrl,
         companyName: nextSnapshot.companyName,
         companyTaxId: nextSnapshot.companyTaxId,
         department: nextSnapshot.department,
@@ -2196,14 +2226,12 @@ function ProtectedExpenseEditor({
           isExpanded: false,
           isReceiptPreviewOpen: false,
         }));
-      const cachedCompanyLogoUrl = nextSnapshot.companyLogoObjectPath;
-
       writeExpenseDayCache(cacheUserKey, expenseDate, {
         companyAddress: nextSnapshot.companyAddress,
         companyId: nextSnapshot.companyId,
         companyLogoBucketName: nextSnapshot.companyLogoBucketName,
         companyLogoObjectPath: nextSnapshot.companyLogoObjectPath,
-        companyLogoUrl: cachedCompanyLogoUrl,
+        companyLogoUrl: nextSnapshot.companyLogoUrl,
         companyName: nextSnapshot.companyName,
         companyTaxId: nextSnapshot.companyTaxId,
         department: nextSnapshot.department,
@@ -2347,6 +2375,7 @@ function ProtectedExpenseEditor({
       companyId: selectedCompanyId,
       companyLogoBucketName: selectedCompanyLogoBucketName,
       companyLogoObjectPath: selectedCompanyLogoObjectPath,
+      companyLogoUrl: selectedCompanyLogoUrl,
       companyName: selectedCompanyName,
       companyTaxId: selectedCompanyTaxId,
       department,
@@ -2380,6 +2409,7 @@ function ProtectedExpenseEditor({
     selectedCompanyAddress,
     selectedCompanyLogoBucketName,
     selectedCompanyLogoObjectPath,
+    selectedCompanyLogoUrl,
     selectedCompanyName,
     selectedCompanyTaxId,
   ]);
@@ -2586,8 +2616,12 @@ function ProtectedExpenseEditor({
     })),
   );
   const receiptPages = chunkEntries(printableReceipts, RECEIPTS_PER_PAGE);
+  const selectedCompanyPrintableLogoUrl = buildStoredAssetUrl(
+    selectedCompanyLogoObjectPath,
+    selectedCompanyLogoUrl,
+  );
   const exportSelectedCompanyLogoUrl =
-    exportAssetUrlMap[selectedCompanyLogoUrl] ?? selectedCompanyLogoUrl;
+    exportAssetUrlMap[selectedCompanyPrintableLogoUrl] ?? selectedCompanyPrintableLogoUrl;
   const exportPreviewPages = [
     ...printableFormPages.map((pageRows, pageIndex) => ({
       key: `form-page-${pageIndex + 1}`,
@@ -2862,8 +2896,8 @@ function ProtectedExpenseEditor({
       exportLanguage,
       note,
       printableAssetUrls: [
-        selectedCompanyLogoUrl,
-        ...nextPrintableReceipts.map((entry) => entry.receipt.previewUrl),
+        buildStoredAssetUrl(selectedCompanyLogoObjectPath, selectedCompanyLogoUrl),
+        ...nextPrintableReceipts.map((entry) => getReceiptPrintableUrl(entry.receipt)),
       ].filter(Boolean),
       printableEmployeeName: employeeName || defaultEmployeeName,
       printableFormPages:
@@ -2871,7 +2905,10 @@ function ProtectedExpenseEditor({
           ? chunkEntries(nextPopulatedRowsWithLineNumbers, EXPORT_FORM_ROWS_PER_PAGE)
           : [nextPopulatedRowsWithLineNumbers],
       receiptPages: chunkEntries(nextPrintableReceipts, RECEIPTS_PER_PAGE),
-      selectedCompanyLogoUrl,
+      selectedCompanyLogoUrl: buildStoredAssetUrl(
+        selectedCompanyLogoObjectPath,
+        selectedCompanyLogoUrl,
+      ),
       selectedCompanyName,
       totalAmount: rows.reduce((sum, row) => sum + parseAmount(row.amount), 0),
     };
@@ -3808,50 +3845,54 @@ function ProtectedExpenseEditor({
               </div>
             </div>
 
-            <DialogFooter className="border-t border-border/60 bg-background/80 px-3 py-3 sm:px-6 sm:py-4">
+            <DialogFooter className="flex-col items-center justify-center gap-3 border-t border-border/60 bg-background/80 px-3 py-3 text-center sm:flex-col sm:px-6 sm:py-4">
               {printError ? (
-                <p className="mr-auto max-w-md text-sm leading-6 text-destructive">
+                <p className="max-w-xl text-sm leading-6 text-destructive">
                   {printError}
                 </p>
               ) : exportFeedbackMessage ? (
-                <p className="mr-auto text-sm text-primary">{exportFeedbackMessage}</p>
+                <p className="max-w-xl text-sm leading-6 text-primary">
+                  {exportFeedbackMessage}
+                </p>
               ) : (
-                <p className="mr-auto text-sm text-muted-foreground">
+                <p className="max-w-xl text-sm leading-6 text-muted-foreground">
                   {isMobileLayout
                     ? "The PDF will download directly on mobile."
                     : "The saved PDF matches this preview layout."}
                 </p>
               )}
-              <Button
-                className="w-full rounded-full sm:w-auto"
-                disabled={isSavingPdf}
-                type="button"
-                variant="outline"
-                onClick={() => setIsExportPreviewOpen(false)}
-              >
-                Close
-              </Button>
-              <Button
-                className="w-full rounded-full px-5 sm:w-auto"
-                disabled={isSavingPdf}
-                type="button"
-                onClick={() => {
-                  void handleConfirmExport();
-                }}
-              >
-                {isSavingPdf ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : (
-                  <Download className="size-4" />
-                )}
-                {isSavingPdf
-                  ? isMobileLayout
-                    ? "Downloading PDF..."
-                    : "Saving PDF..."
-                  : isMobileLayout
-                    ? "Download PDF"
-                    : "Confirm and save PDF"}
-              </Button>
+              <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button
+                  className="h-11 rounded-full sm:w-32"
+                  disabled={isSavingPdf}
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsExportPreviewOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  className="h-11 rounded-full px-5 sm:min-w-56"
+                  disabled={isSavingPdf}
+                  type="button"
+                  onClick={() => {
+                    void handleConfirmExport();
+                  }}
+                >
+                  {isSavingPdf ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  {isSavingPdf
+                    ? isMobileLayout
+                      ? "Downloading PDF..."
+                      : "Saving PDF..."
+                    : isMobileLayout
+                      ? "Download PDF"
+                      : "Confirm and save PDF"}
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -4187,8 +4228,9 @@ function ReceiptExportPage({
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           {entries.map((entry) => {
+            const receiptPrintableUrl = getReceiptPrintableUrl(entry.receipt);
             const receiptPreviewUrl =
-              assetUrlMap[entry.receipt.previewUrl] ?? entry.receipt.previewUrl;
+              assetUrlMap[receiptPrintableUrl] ?? receiptPrintableUrl;
 
             return (
               <article className="p-0" key={entry.key}>
