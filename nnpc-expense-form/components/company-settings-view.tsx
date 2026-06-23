@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Building2, LogOut, PencilLine, Plus } from "lucide-react";
+import { Building2, LogOut, PencilLine, Plus, Trash2 } from "lucide-react";
 import AuthGate, { type AuthSession } from "@/components/auth-gate";
 import { ThemeSettingsSheet } from "@/components/theme-settings-sheet";
 import { TopRouteTabs } from "@/components/top-route-tabs";
@@ -28,6 +28,7 @@ import { readCompaniesCache, writeCompaniesCache } from "@/lib/browser-cache";
 import {
   SESSION_EXPIRED_MESSAGE,
   createUserCompany,
+  deleteUserCompany,
   listUserCompanies,
   updateUserCompany,
   type CompanyRecord,
@@ -50,7 +51,7 @@ function limitTextLength(value: string, maxLength: number) {
 
 export default function CompanySettingsView() {
   return (
-    <AuthGate>
+    <AuthGate allowedRoles={["admin", "central_admin"]}>
       {({ account, session, logout }) => (
         <ProtectedCompanySettings account={account} logout={logout} session={session} />
       )}
@@ -107,6 +108,7 @@ function ProtectedCompanySettings({
   const [editCompanyLogoDraft, setEditCompanyLogoDraft] = useState("");
   const [editCompanyMessage, setEditCompanyMessage] = useState<CompanyMessage | null>(null);
   const [isUpdatingCompany, setIsUpdatingCompany] = useState(false);
+  const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -357,6 +359,53 @@ function ProtectedCompanySettings({
     }
   };
 
+  const handleDeleteCompany = async (company: CompanyRecord) => {
+    const didConfirm = window.confirm(
+      `Delete ${company.companyName}? This cannot be undone.`,
+    );
+
+    if (!didConfirm) {
+      return;
+    }
+
+    setDeletingCompanyId(company.id);
+    setCompanyMessage(null);
+
+    try {
+      await deleteUserCompany({
+        accessToken: session.accessToken,
+        companyId: company.id,
+      });
+
+      setCompanies((currentCompanies) => {
+        const nextCompanies = currentCompanies.filter(
+          (currentCompany) => currentCompany.id !== company.id,
+        );
+        writeCompaniesCache(cacheUserKey, nextCompanies);
+        return nextCompanies;
+      });
+      setCompanyMessage({
+        tone: "info",
+        text: `${company.companyName} was deleted.`,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === SESSION_EXPIRED_MESSAGE) {
+        void logout();
+        return;
+      }
+
+      setCompanyMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Company could not be deleted.",
+      });
+    } finally {
+      setDeletingCompanyId(null);
+    }
+  };
+
   return (
     <div className="page-shell min-h-screen">
       <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
@@ -419,14 +468,14 @@ function ProtectedCompanySettings({
                   {t("company.noCompanies")}
                 </div>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 2xl:grid-cols-2">
                   {companies.map((company) => (
                     <article
-                      className="flex flex-col gap-4 rounded-[1.5rem] border border-white/10 bg-background/65 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      className="grid min-w-0 gap-4 rounded-[1.5rem] border border-white/10 bg-background/65 p-4"
                       key={company.id}
                     >
-                      <div className="flex min-w-0 items-center gap-4">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-background/85">
+                      <div className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-3">
+                        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-background/85">
                           <Image
                             alt={company.companyName}
                             className="h-full w-full object-contain"
@@ -437,29 +486,32 @@ function ProtectedCompanySettings({
                           />
                         </div>
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+                        <div className="min-w-0 self-center">
+                          <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground break-words">
                             {company.companyName}
                           </p>
                           {company.companyTaxId ? (
-                            <p className="mt-1 break-all text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                              {t("common.taxId", { taxId: company.companyTaxId })}
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground break-words">
+                              <span className="font-medium text-foreground/70">
+                                {t("common.companyTaxId")}
+                              </span>{" "}
+                              {company.companyTaxId}
                             </p>
                           ) : null}
                           {company.companyAddress ? (
-                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
+                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground break-words">
                               {company.companyAddress}
                             </p>
                           ) : null}
-                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                             {t("company.exportReady")}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end">
+                      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/50 pt-3">
                         <Button
-                          className="rounded-full px-4"
+                          className="h-9 whitespace-nowrap rounded-full px-3"
                           size="sm"
                           type="button"
                           variant="outline"
@@ -467,6 +519,19 @@ function ProtectedCompanySettings({
                         >
                           <PencilLine className="size-4" />
                           {t("common.edit")}
+                        </Button>
+                        <Button
+                          className="h-9 whitespace-nowrap rounded-full border-destructive/25 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={deletingCompanyId === company.id}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            void handleDeleteCompany(company);
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                          {t("common.delete")}
                         </Button>
                       </div>
                     </article>

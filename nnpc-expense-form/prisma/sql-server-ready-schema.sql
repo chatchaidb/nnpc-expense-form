@@ -5,7 +5,7 @@
   - Better Auth email/password login tables.
   - App-level user management tables and constraints.
   - Expense creation tables, indexes, and starter expense types.
-  - Receipt/logo columns remain metadata/data-url compatible until object storage is configured.
+  - Receipt/logo columns store R2 bucket metadata and object paths.
 
   Super admin setup:
   1. Create the user through the app sign-up flow so Better Auth writes [user]/[account].

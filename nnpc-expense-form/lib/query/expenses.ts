@@ -10,6 +10,7 @@ import {
   type ReceiptDraft,
 } from "@/lib/expense-data";
 import { prisma } from "@/lib/prisma";
+import { deleteR2Object, getPublicObjectUrl, getR2BucketName } from "@/lib/r2-storage";
 
 export type ExpenseDayDocument = {
   reportId: string;
@@ -60,7 +61,7 @@ function buildReceiptDraft(receipt: {
     mimeType: receipt.mimeType,
     name: receipt.originalFileName,
     objectPath: receipt.objectPath,
-    previewUrl: receipt.objectPath,
+    previewUrl: getPublicObjectUrl(receipt.objectPath),
     sizeLabel:
       typeof receipt.fileSizeBytes === "bigint"
         ? formatFileSize(Number(receipt.fileSizeBytes))
@@ -115,7 +116,9 @@ export async function getExpenseDay(userId: string, expenseDate: string) {
     companyId: report.companyId ?? "",
     companyLogoBucketName: report.companyLogoBucketName ?? "",
     companyLogoObjectPath: report.companyLogoObjectPath ?? "",
-    companyLogoUrl: report.companyLogoDataUrl ?? "",
+    companyLogoUrl: report.companyLogoObjectPath
+      ? getPublicObjectUrl(report.companyLogoObjectPath)
+      : report.companyLogoDataUrl ?? "",
     companyName: report.companyName ?? "",
     companyTaxId: report.companyTaxId ?? "",
     department: report.department ?? "",
@@ -177,8 +180,24 @@ export async function upsertExpenseDay({
   );
   const expenseDateValue = toDateOnly(expenseDate);
   const existingReport = await prisma.expenseReport.findUnique({
+    include: {
+      items: {
+        include: {
+          receipts: true,
+        },
+      },
+    },
     where: { userId_expenseDate: { expenseDate: expenseDateValue, userId } },
   });
+  const existingReceipts =
+    existingReport?.items.flatMap((item) => item.receipts) ?? [];
+  const nextReceiptObjectPaths = new Set(
+    persistedRows.flatMap((row) =>
+      row.receipts
+        .map((receipt) => receipt.objectPath || "")
+        .filter((objectPath) => objectPath.trim()),
+    ),
+  );
   const report = await prisma.expenseReport.upsert({
     create: {
       companyAddress: companyAddress.trim() || null,
@@ -231,7 +250,7 @@ export async function upsertExpenseDay({
         reportId: report.id,
         receipts: {
           create: row.receipts.map((receipt) => ({
-            bucketName: receipt.bucketName ?? "sql-server",
+            bucketName: receipt.bucketName ?? getR2BucketName(),
             fileSizeBytes: receipt.fileSizeBytes ? BigInt(receipt.fileSizeBytes) : null,
             mimeType: receipt.mimeType ?? null,
             objectPath: receipt.objectPath || receipt.previewUrl,
@@ -241,6 +260,16 @@ export async function upsertExpenseDay({
       },
     });
   }
+
+  const removedReceipts = existingReceipts.filter(
+    (receipt) => !nextReceiptObjectPaths.has(receipt.objectPath),
+  );
+
+  await Promise.all(
+    removedReceipts.map((receipt) =>
+      deleteR2Object(receipt.objectPath, receipt.bucketName),
+    ),
+  );
 
   return {
     didUpload: false,
